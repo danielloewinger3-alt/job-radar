@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Job Radar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <h1>Job Radar</h1>
+    <div id="controls">
+      <input id="search" type="text" placeholder="Filter by title/company..." />
+      <label><input id="toggle-eu" type="checkbox" checked /> Show EU cities</label>
+      <label><input id="toggle-remote" type="checkbox" /> Remote only</label>
+      <button id="refresh-btn">Refresh now</button>
+      <span id="refresh-status"></span>
+    </div>
+  </header>
+  <div id="map"></div>
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h2 id="sidebar-title">All target cities</h2>
+      <span id="sidebar-count"></span>
+    </div>
+    <div id="job-list"></div>
+  </aside>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
