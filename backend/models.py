@@ -59,3 +59,21 @@ class Application(SQLModel, table=True):
     review_notes: str = ""  # the reviewer model's critique, kept for transparency
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Business(SQLModel, table=True):
+    id: str = Field(primary_key=True)  # f"osm:{osm_type}:{osm_id}"
+    area_key: str = Field(index=True)  # key into PROSPECT_AREAS
+    category: str = Field(index=True)  # key into BUSINESS_CATEGORIES
+    name: str
+    lat: float
+    lon: float
+    address: str = ""
+    phone: str = ""
+    website: str = ""
+    companies_house_number: str = ""
+    companies_house_status: str = ""  # e.g. "active", "active — accounts overdue", "dissolved"
+    opportunity_summary: str = ""  # Claude's assessment against the opportunity rubric
+    opportunity_tags: str = ""  # comma-separated matched opportunity categories
+    analyzed_at: Optional[datetime] = None
+    discovered_at: datetime = Field(default_factory=datetime.utcnow)

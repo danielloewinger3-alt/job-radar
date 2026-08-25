@@ -99,3 +99,42 @@ GREENHOUSE_COMPANIES = [
 ]
 
 LEVER_COMPANIES = ["palantir", "ro"]
+
+# ---------- Prospects mode: local SME opportunity scanning ----------
+
+COMPANIES_HOUSE_API_KEY = os.getenv("COMPANIES_HOUSE_API_KEY", "")
+
+# Areas to scan. Start with Bristol; add more UK cities here the same way to expand.
+PROSPECT_AREAS = {
+    "bristol": {"label": "Bristol", "lat": 51.4545, "lon": -2.5879, "radius_km": 8},
+}
+
+# OSM tag -> our category. OSM only maps businesses with a physical, publicly-visible
+# location, so coverage is good for storefronts (dentists, salons, gyms, estate agents)
+# and weak-to-empty for van-based trades (plumbers, electricians, cleaners, landscapers)
+# that don't have a mapped premises. osm_coverage flags that honestly for the UI.
+BUSINESS_CATEGORIES = {
+    "dentist":        {"label": "Dentists", "osm_coverage": "good", "tags": [("amenity", "dentist")]},
+    "medical_clinic": {"label": "Medical & Health Clinics", "osm_coverage": "good", "tags": [("amenity", "clinic"), ("amenity", "doctors")]},
+    "physio":         {"label": "Physio & Osteopaths", "osm_coverage": "fair", "tags": [("healthcare", "physiotherapist")]},
+    "estate_agent":   {"label": "Estate & Letting Agents", "osm_coverage": "good", "tags": [("office", "estate_agent")]},
+    "builder":        {"label": "Builders & Construction", "osm_coverage": "poor", "tags": [("craft", "builder")]},
+    "plumber":        {"label": "Plumbers", "osm_coverage": "poor", "tags": [("craft", "plumber")]},
+    "electrician":    {"label": "Electricians", "osm_coverage": "poor", "tags": [("craft", "electrician")]},
+    "hvac":           {"label": "Heating / HVAC", "osm_coverage": "poor", "tags": [("craft", "hvac")]},
+    "roofer":         {"label": "Roofing", "osm_coverage": "poor", "tags": [("craft", "roofer")]},
+    "landscaper":     {"label": "Landscaping", "osm_coverage": "poor", "tags": [("craft", "gardener")]},
+    "car_repair":     {"label": "Garages & MOT Centres", "osm_coverage": "good", "tags": [("shop", "car_repair")]},
+    "car_dealer":     {"label": "Car Dealerships", "osm_coverage": "good", "tags": [("shop", "car")]},
+    "recruitment":    {"label": "Recruitment Agencies", "osm_coverage": "fair", "tags": [("office", "employment_agency")]},
+    "accountant":     {"label": "Accountants & Bookkeepers", "osm_coverage": "good", "tags": [("office", "accountant")]},
+    "financial":      {"label": "Mortgage / Insurance / IFA", "osm_coverage": "fair", "tags": [("office", "financial"), ("office", "insurance")]},
+    "lawyer":         {"label": "Law Firms", "osm_coverage": "good", "tags": [("office", "lawyer")]},
+    "gym":            {"label": "Gyms & Personal Training", "osm_coverage": "good", "tags": [("leisure", "fitness_centre")]},
+    "sports_facility":{"label": "Padel / Tennis / Sports", "osm_coverage": "good", "tags": [("leisure", "sports_centre")]},
+    "beauty":         {"label": "Beauty Salons", "osm_coverage": "good", "tags": [("shop", "beauty")]},
+    "hair":           {"label": "Hair Salons & Barbers", "osm_coverage": "good", "tags": [("shop", "hairdresser")]},
+    "cleaning":       {"label": "Cleaning Companies", "osm_coverage": "poor", "tags": [("craft", "cleaning")]},
+    "hotel":          {"label": "Independent Hotels", "osm_coverage": "good", "tags": [("tourism", "hotel")]},
+    "restaurant":     {"label": "Restaurants & Hospitality", "osm_coverage": "good", "tags": [("amenity", "restaurant")]},
+}

@@ -1,6 +1,7 @@
 import html
 import re
 
+_SCRIPT_STYLE_RE = re.compile(r"(?is)<(script|style|noscript)\b[^>]*>.*?</\1>")
 _BLOCK_BREAK_RE = re.compile(r"(?i)<br\s*/?>|</p>|</li>|</div>|</h[1-6]>")
 _TAG_RE = re.compile(r"<[^>]+>")
 _BLANK_LINES_RE = re.compile(r"\n{3,}")
@@ -8,9 +9,12 @@ _BLANK_LINES_RE = re.compile(r"\n{3,}")
 
 def strip_html(text: str) -> str:
     """Best-effort HTML -> readable plain text for job descriptions pulled from
-    ATS APIs (Greenhouse/Lever/etc. return rich HTML, not plain text)."""
+    ATS APIs (Greenhouse/Lever/etc. return rich HTML, not plain text) or raw
+    fetched web pages. Strips script/style blocks entirely (tag AND contents) —
+    a plain tag-strip would leak JS/CSS text into the output."""
     if not text:
         return ""
+    text = _SCRIPT_STYLE_RE.sub(" ", text)
     # Some sources (Greenhouse) double-encode entities: "&amp;lt;p&amp;gt;" for "<p>",
     # so a stray "&nbsp;" can still remain after a single pass. Unescaping is
     # idempotent on already-resolved text, so run it twice to be safe.

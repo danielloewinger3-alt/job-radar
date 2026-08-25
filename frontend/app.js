@@ -91,6 +91,18 @@
     jobModalReviewNotesText: document.getElementById("job-modal-review-notes-text"),
     jobModalFeedback: document.getElementById("job-modal-feedback"),
     jobModalReviseBtn: document.getElementById("job-modal-revise-btn"),
+
+    prospectsBtn: document.getElementById("prospects-btn"),
+    prospectsPanel: document.getElementById("prospects-panel"),
+    prospectsBackdrop: document.getElementById("prospects-backdrop"),
+    prospectsClose: document.getElementById("prospects-close"),
+    prospectsStats: document.getElementById("prospects-stats"),
+    prospectsCategories: document.getElementById("prospects-categories"),
+    prospectsScanBtn: document.getElementById("prospects-scan-btn"),
+    prospectsAnalyzeBtn: document.getElementById("prospects-analyze-btn"),
+    prospectsStatus: document.getElementById("prospects-status"),
+    prospectsFilter: document.getElementById("prospects-filter"),
+    prospectsGrid: document.getElementById("prospects-grid"),
   };
 
   const state = {
@@ -106,6 +118,9 @@
     githubRepos: [],
     currentJob: null,
     currentApplication: null,
+    prospectAreas: [],
+    prospectCategories: [],
+    businesses: [],
   };
 
   let net = null;
@@ -212,6 +227,8 @@
   // ---------- bubble open/close ----------
 
   async function openBubble(key, label) {
+    closeHub();
+    closeProspects();
     state.mode = "list";
     document.querySelectorAll("[data-mode]").forEach(b => {
       const active = b.dataset.mode === "list";
@@ -474,6 +491,7 @@
 
   function openHub() {
     closeBubble();
+    closeProspects();
     els.hubPanel.classList.add("open");
     els.hubBackdrop.classList.add("open");
     loadCVs();
@@ -745,6 +763,7 @@
     if (e.key !== "Escape") return;
     if (els.jobModal.classList.contains("open")) closeJobModal();
     else if (els.hubPanel.classList.contains("open")) closeHub();
+    else if (els.prospectsPanel.classList.contains("open")) closeProspects();
     else if (state.openBubble) closeBubble();
   });
 
@@ -1053,6 +1072,157 @@
       }
     }
     net.dragNode = null;
+  }
+
+  // ---------- prospects (local business opportunity scan) ----------
+
+  const CURRENT_AREA = "bristol"; // only area for now; PROSPECT_AREAS on the backend is built to grow
+
+  function openProspects() {
+    closeBubble();
+    closeHub();
+    els.prospectsPanel.classList.add("open");
+    els.prospectsBackdrop.classList.add("open");
+    loadProspectMeta().then(loadBusinesses);
+  }
+
+  function closeProspects() {
+    els.prospectsPanel.classList.remove("open");
+    els.prospectsBackdrop.classList.remove("open");
+  }
+
+  els.prospectsBtn.addEventListener("click", openProspects);
+  els.prospectsClose.addEventListener("click", closeProspects);
+  els.prospectsBackdrop.addEventListener("click", closeProspects);
+
+  async function loadProspectMeta() {
+    if (state.prospectCategories.length > 0) return; // static config, fetch once
+    const res = await fetch("/api/prospects/areas");
+    const data = await res.json();
+    state.prospectAreas = data.areas;
+    state.prospectCategories = data.categories;
+    renderCategoryPicker();
+    renderProspectsFilter();
+  }
+
+  function renderCategoryPicker() {
+    els.prospectsCategories.innerHTML = state.prospectCategories.map(cat =>
+      '<label class="category-chip">' +
+        '<input type="checkbox" value="' + cat.key + '"' + (cat.osm_coverage === "good" ? " checked" : "") + ' />' +
+        '<span class="coverage-dot ' + cat.osm_coverage + '" title="' + cat.osm_coverage + ' data coverage"></span>' +
+        escapeHtml(cat.label) +
+      '</label>'
+    ).join("");
+  }
+
+  function renderProspectsFilter() {
+    els.prospectsFilter.innerHTML = '<option value="">All categories</option>' +
+      state.prospectCategories.map(cat => '<option value="' + cat.key + '">' + escapeHtml(cat.label) + '</option>').join("");
+  }
+
+  function categoryLabel(key) {
+    const cat = state.prospectCategories.find(c => c.key === key);
+    return cat ? cat.label : key;
+  }
+
+  els.prospectsScanBtn.addEventListener("click", async () => {
+    const checked = Array.from(els.prospectsCategories.querySelectorAll("input:checked")).map(i => i.value);
+    if (checked.length === 0) return;
+    els.prospectsScanBtn.disabled = true;
+    els.prospectsStatus.textContent = "Scanning " + checked.length + " categor" + (checked.length === 1 ? "y" : "ies") + " via OpenStreetMap…";
+    try {
+      const res = await fetch("/api/prospects/" + CURRENT_AREA + "/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: checked }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "scan failed");
+      els.prospectsStatus.textContent = "+" + data.total_new + " new businesses found";
+      await loadBusinesses();
+    } catch (err) {
+      els.prospectsStatus.textContent = err.message;
+    }
+    els.prospectsScanBtn.disabled = false;
+    setTimeout(() => (els.prospectsStatus.textContent = ""), 5000);
+  });
+
+  els.prospectsAnalyzeBtn.addEventListener("click", async () => {
+    els.prospectsAnalyzeBtn.disabled = true;
+    els.prospectsStatus.textContent = "Analyzing… (fetches each website, then Claude scores it — can take a minute)";
+    try {
+      const res = await fetch("/api/prospects/" + CURRENT_AREA + "/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 10 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "analysis failed");
+      els.prospectsStatus.textContent = "Analyzed " + data.analyzed + " businesses";
+      await loadBusinesses();
+    } catch (err) {
+      els.prospectsStatus.textContent = err.message;
+    }
+    els.prospectsAnalyzeBtn.disabled = false;
+    setTimeout(() => (els.prospectsStatus.textContent = ""), 5000);
+  });
+
+  els.prospectsFilter.addEventListener("change", loadBusinesses);
+
+  async function loadBusinesses() {
+    const category = els.prospectsFilter.value;
+    const url = "/api/prospects/" + CURRENT_AREA + "/businesses" + (category ? "?category=" + encodeURIComponent(category) : "");
+    const res = await fetch(url);
+    state.businesses = await res.json();
+    renderBusinessGrid();
+    updateProspectsStats();
+  }
+
+  function updateProspectsStats() {
+    const analyzed = state.businesses.filter(b => b.analyzed_at).length;
+    els.prospectsStats.textContent = "Bristol, UK · " + state.businesses.length + " businesses · " + analyzed + " analyzed";
+  }
+
+  function renderBusinessGrid() {
+    if (state.businesses.length === 0) {
+      els.prospectsGrid.innerHTML = '<div class="hub-empty">No businesses yet — pick categories above and scan.</div>';
+      return;
+    }
+    els.prospectsGrid.innerHTML = "";
+    state.businesses.forEach(business => {
+      const card = document.createElement("div");
+      card.className = "hub-card";
+      const links = [
+        business.phone ? escapeHtml(business.phone) : "",
+        business.website ? '<a href="' + escapeHtml(business.website.startsWith("http") ? business.website : "https://" + business.website) + '" target="_blank" rel="noopener">Website</a>' : "no website found",
+      ].filter(Boolean).join(" &middot; ");
+
+      let chStatus = "";
+      if (business.companies_house_status) {
+        const overdue = business.companies_house_status.includes("overdue");
+        chStatus = '<div class="ch-status' + (overdue ? " overdue" : "") + '">Companies House: ' + escapeHtml(business.companies_house_status) + '</div>';
+      }
+
+      let opportunitySection;
+      if (business.analyzed_at) {
+        const tags = (business.opportunity_tags || "").split(",").map(t => t.trim()).filter(Boolean);
+        opportunitySection =
+          '<div class="opportunity-summary">' + escapeHtml(business.opportunity_summary || "No summary.") + '</div>' +
+          (tags.length ? '<div class="opportunity-tags">' + tags.map(t => '<span class="opportunity-tag">' + escapeHtml(t.replace(/_/g, " ")) + '</span>').join("") + '</div>' : "");
+      } else {
+        opportunitySection = '<div class="opportunity-summary">Not analyzed yet — click "Analyze next 10" above.</div>';
+      }
+
+      card.innerHTML =
+        '<div class="business-card-head">' +
+          '<div class="hub-card-title">' + escapeHtml(business.name) + '</div>' +
+          '<span class="hub-card-tag">' + escapeHtml(categoryLabel(business.category)) + '</span>' +
+        '</div>' +
+        '<div class="business-card-meta">' + escapeHtml(business.address || "") + '<br>' + links + '</div>' +
+        chStatus +
+        opportunitySection;
+      els.prospectsGrid.appendChild(card);
+    });
   }
 
   // ---------- clock ----------

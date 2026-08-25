@@ -28,6 +28,7 @@
       <input id="search" type="text" placeholder="Filter open case file&hellip;" />
       <label class="hud-toggle"><input id="toggle-eu" type="checkbox" checked /> EU net</label>
       <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
+      <button id="prospects-btn" class="hud-btn hud-btn--ghost">Prospects</button>
       <button id="refresh-btn" class="hud-btn">Refresh</button>
       <span id="refresh-status" class="refresh-status"></span>
     </div>
@@ -184,6 +185,38 @@
           <button id="job-modal-revise-btn" class="hud-btn" type="button">Request changes</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="overlay-backdrop" id="prospects-backdrop"></div>
+  <div class="overlay-card" id="prospects-panel" role="dialog" aria-modal="true" aria-labelledby="prospects-title">
+    <div class="panel-head">
+      <div>
+        <div class="panel-eyebrow">Local opportunity scan</div>
+        <h2 id="prospects-title">Prospects</h2>
+      </div>
+      <button class="icon-btn" id="prospects-close" aria-label="Close prospects">&#10005;</button>
+    </div>
+    <div class="panel-meta">
+      <span id="prospects-stats">Bristol, UK</span>
+      <span class="prospects-hint">More UK areas coming later</span>
+    </div>
+    <div class="hub-body">
+      <div class="prospects-controls">
+        <div class="prospects-categories" id="prospects-categories"></div>
+        <div class="job-modal-apply-row">
+          <button id="prospects-scan-btn" class="hud-btn hud-btn--accent" type="button">Scan selected categories</button>
+          <button id="prospects-analyze-btn" class="hud-btn" type="button">Analyze next 10</button>
+          <span id="prospects-status" class="refresh-status"></span>
+        </div>
+        <div class="job-modal-apply-row">
+          <label for="prospects-filter" class="prospects-filter-label">Show</label>
+          <select id="prospects-filter">
+            <option value="">All categories</option>
+          </select>
+        </div>
+      </div>
+      <div id="prospects-grid" class="hub-grid prospects-grid"></div>
     </div>
   </div>
 </div>

@@ -15,17 +15,20 @@ from backend.ai_apply import generate_application, revise_with_feedback
 from backend.config import (
     ALL_CITIES,
     ANTHROPIC_API_KEY,
+    BUSINESS_CATEGORIES,
     GITHUB_TOKEN,
     GITHUB_USERNAME,
     MAX_CV_BYTES,
     OPENAI_API_KEY,
+    PROSPECT_AREAS,
     TARGET_CITIES,
     UPLOAD_DIR,
 )
 from backend.cv_text import extract_text as extract_cv_text
 from backend.db import get_session, init_db
-from backend.models import CV, Application, Job, Profile, Project
+from backend.models import CV, Application, Business, Job, Profile, Project
 from backend.poller import poll_all_sources
+from backend.prospects import scan as prospect_scan
 from backend import scheduler as scheduler_module
 
 logging.basicConfig(level=logging.INFO)
@@ -360,6 +363,56 @@ def revise_application(application_id: int, body: ReviseIn):
         session.commit()
         session.refresh(application)
         return application
+
+
+# ---------- prospects (local business opportunity scanning) ----------
+
+@app.get("/api/prospects/areas")
+def get_prospect_areas():
+    return {
+        "areas": [{"key": k, **v} for k, v in PROSPECT_AREAS.items()],
+        "categories": [{"key": k, **v} for k, v in BUSINESS_CATEGORIES.items()],
+    }
+
+
+@app.get("/api/prospects/{area_key}/businesses")
+def list_businesses(area_key: str, category: str | None = None):
+    if area_key not in PROSPECT_AREAS:
+        raise HTTPException(status_code=404, detail="unknown area")
+    with get_session() as session:
+        query = select(Business).where(Business.area_key == area_key)
+        if category:
+            query = query.where(Business.category == category)
+        return session.exec(query.order_by(Business.discovered_at.desc())).all()
+
+
+class ScanIn(BaseModel):
+    categories: list[str]
+
+
+@app.post("/api/prospects/{area_key}/scan")
+def scan_prospects(area_key: str, body: ScanIn):
+    if area_key not in PROSPECT_AREAS:
+        raise HTTPException(status_code=404, detail="unknown area")
+    unknown = [c for c in body.categories if c not in BUSINESS_CATEGORIES]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"unknown categories: {', '.join(unknown)}")
+    counts = prospect_scan.discover(area_key, body.categories)
+    return {"new_businesses": counts, "total_new": sum(counts.values())}
+
+
+class AnalyzeIn(BaseModel):
+    limit: int = 10
+
+
+@app.post("/api/prospects/{area_key}/analyze")
+def analyze_prospects(area_key: str, body: AnalyzeIn):
+    if area_key not in PROSPECT_AREAS:
+        raise HTTPException(status_code=404, detail="unknown area")
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=400, detail="ANTHROPIC_API_KEY not set in .env")
+    analyzed = prospect_scan.analyze_pending(area_key, limit=min(body.limit, 25))
+    return {"analyzed": analyzed}
 
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
