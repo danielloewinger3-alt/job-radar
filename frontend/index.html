@@ -5,28 +5,159 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Job Radar</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div id="app">
-  <header id="topbar">
-    <h1>Job Radar</h1>
-    <div id="controls">
-      <input id="search" type="text" placeholder="Filter by title/company..." />
-      <label><input id="toggle-eu" type="checkbox" checked /> Show EU cities</label>
-      <label><input id="toggle-remote" type="checkbox" /> Remote only</label>
-      <button id="refresh-btn">Refresh now</button>
-      <span id="refresh-status"></span>
+<div id="stage">
+  <div id="map"></div>
+  <div class="radar-ground" aria-hidden="true"></div>
+  <div class="radar-sweep" aria-hidden="true"></div>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header class="hud-bar">
+    <div class="hud-title">
+      <span class="hud-mark" aria-hidden="true">&#129415;</span>
+      <div>
+        <h1>Job Radar</h1>
+        <p>Citywide posting surveillance</p>
+      </div>
+    </div>
+    <div class="hud-controls">
+      <input id="search" type="text" placeholder="Filter open case file&hellip;" />
+      <label class="hud-toggle"><input id="toggle-eu" type="checkbox" checked /> EU net</label>
+      <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
+      <button id="refresh-btn" class="hud-btn">Refresh</button>
+      <span id="refresh-status" class="refresh-status"></span>
+    </div>
+    <div class="hud-stats">
+      <div class="stat"><span id="stat-total">0</span><label>Signals</label></div>
+      <div class="stat stat-alert"><span id="stat-new">0</span><label>Unreviewed</label></div>
+      <time id="clock" class="clock">00:00:00</time>
     </div>
   </header>
-  <div id="map"></div>
-  <aside id="sidebar">
-    <div id="sidebar-header">
-      <h2 id="sidebar-title">All target cities</h2>
-      <span id="sidebar-count"></span>
+
+  <button id="remote-pin" class="pin-icon pin-corner" type="button" aria-label="Remote roles">
+    <span class="pin-pulse"></span>
+    <span class="pin-dot"></span>
+    <span class="pin-count" id="remote-count" hidden></span>
+  </button>
+  <span class="pin-corner-label">Remote</span>
+
+  <div class="overlay-backdrop" id="panel-backdrop"></div>
+  <div class="overlay-card" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-city">
+    <div class="panel-head">
+      <div>
+        <div class="panel-eyebrow">Case file</div>
+        <h2 id="panel-city">&mdash;</h2>
+      </div>
+      <button class="icon-btn" id="panel-close" aria-label="Close case file">&#10005;</button>
     </div>
-    <div id="job-list"></div>
-  </aside>
+    <div class="panel-meta">
+      <span id="panel-count"></span>
+      <div class="mode-toggle" role="tablist">
+        <button class="mode-btn active" data-mode="list" role="tab" aria-selected="true">List</button>
+        <button class="mode-btn" data-mode="network" role="tab" aria-selected="false">Network</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="panel-minimap" id="panel-minimap"></div>
+      <div class="panel-minimap-overlay" aria-hidden="true"></div>
+      <div class="panel-list" id="panel-list"></div>
+      <div class="panel-network" id="panel-network" hidden>
+        <canvas id="network-canvas"></canvas>
+        <div class="network-readout" id="network-readout">Hover a node to inspect. Click a company to expand or collapse it.</div>
+        <div class="network-legend" id="network-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay-backdrop" id="hub-backdrop"></div>
+  <div class="overlay-card" id="hub-panel" role="dialog" aria-modal="true" aria-labelledby="hub-title">
+    <span class="hub-bracket hub-bracket--tr" aria-hidden="true"></span>
+    <span class="hub-bracket hub-bracket--bl" aria-hidden="true"></span>
+    <div class="panel-head">
+      <div class="hub-title-row">
+        <span class="hub-ring" aria-hidden="true"></span>
+        <div>
+          <div class="panel-eyebrow">Personnel file</div>
+          <h2 id="hub-title">Dossier</h2>
+        </div>
+      </div>
+      <button class="icon-btn" id="hub-close" aria-label="Close dossier">&#10005;</button>
+    </div>
+    <div class="panel-meta">
+      <span id="hub-count"></span>
+      <div class="mode-toggle hub-dial" role="tablist" id="hub-tabs">
+        <span class="hub-dial-indicator" id="hub-dial-indicator" aria-hidden="true"></span>
+        <button class="mode-btn active" data-hub-tab="cvs" role="tab" aria-selected="true">CVs</button>
+        <button class="mode-btn" data-hub-tab="projects" role="tab" aria-selected="false">Projects</button>
+        <button class="mode-btn" data-hub-tab="github" role="tab" aria-selected="false">GitHub</button>
+      </div>
+    </div>
+    <div class="hub-body">
+      <section id="hub-cvs" class="hub-tab">
+        <form id="cv-form" class="hub-form">
+          <input type="file" id="cv-file" accept="application/pdf" required />
+          <input type="text" id="cv-label" placeholder="Label, e.g. Backend SWE resume" required maxlength="80" />
+          <input type="text" id="cv-role-type" placeholder="Role type (optional)" maxlength="40" />
+          <button type="submit" class="hud-btn">Upload CV</button>
+          <span id="cv-form-status" class="refresh-status"></span>
+        </form>
+        <div id="cv-grid" class="hub-grid"></div>
+      </section>
+      <section id="hub-projects" class="hub-tab" hidden>
+        <form id="project-form" class="hub-form">
+          <input type="text" id="project-title" placeholder="Project title" required maxlength="80" />
+          <input type="text" id="project-tags" placeholder="Tags, comma separated (optional)" maxlength="120" />
+          <input type="url" id="project-link" placeholder="Link (optional)" maxlength="300" />
+          <textarea id="project-description" placeholder="Short description (optional)" maxlength="600"></textarea>
+          <button type="submit" class="hud-btn">Add project</button>
+          <span id="project-form-status" class="refresh-status"></span>
+        </form>
+        <div id="project-grid" class="hub-grid"></div>
+      </section>
+      <section id="hub-github" class="hub-tab" hidden>
+        <div id="github-status" class="hub-empty"></div>
+        <div id="github-grid" class="hub-grid"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="overlay-backdrop" id="job-backdrop"></div>
+  <div class="overlay-card" id="job-modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title">
+    <div class="panel-head">
+      <div>
+        <div class="panel-eyebrow" id="job-modal-company">&mdash;</div>
+        <h2 id="job-modal-title">&mdash;</h2>
+      </div>
+      <button class="icon-btn" id="job-modal-close" aria-label="Close job details">&#10005;</button>
+    </div>
+    <div class="job-modal-meta" id="job-modal-meta"></div>
+    <div class="job-modal-body">
+      <div class="job-modal-description" id="job-modal-description"></div>
+      <div class="job-modal-notes">
+        <label for="job-modal-notes-input">Pay grade, start date, interview process &mdash; your notes</label>
+        <textarea id="job-modal-notes-input" placeholder="Log what you learn as you go through the process&hellip;"></textarea>
+        <div class="job-modal-notes-row">
+          <button id="job-modal-notes-save" class="hud-btn">Save notes</button>
+          <span id="job-modal-notes-status" class="refresh-status"></span>
+        </div>
+      </div>
+    </div>
+    <div class="job-modal-actions">
+      <a id="job-modal-view" href="#" target="_blank" rel="noopener" class="hud-btn hud-btn--ghost">View posting &#8599;</a>
+      <button id="job-modal-apply-btn" class="hud-btn hud-btn--accent">Apply</button>
+    </div>
+    <div class="job-modal-apply" id="job-modal-apply" hidden>
+      <div class="job-modal-apply-head">AI-assisted application &mdash; draft</div>
+      <label for="job-modal-apply-cv">Use CV</label>
+      <select id="job-modal-apply-cv"></select>
+      <button class="hud-btn" disabled title="Not wired up yet">Generate with AI</button>
+      <p class="job-modal-apply-note">This will draft a tailored application from your CV and this job's full description. Not wired up yet &mdash; coming soon.</p>
+    </div>
+  </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>

@@ -1,6 +1,7 @@
 import httpx
 
 from backend.sources.base import RawJob
+from backend.util import strip_html
 
 API_URL = "https://remoteok.com/api"
 # RemoteOK blocks requests without a browser-like User-Agent.
@@ -21,6 +22,7 @@ def fetch() -> list[RawJob]:
     for posting in data:
         if "id" not in posting or "position" not in posting:
             continue  # first element is a legal notice, not a job
+        description_full = strip_html(posting.get("description") or "")
         jobs.append(
             RawJob(
                 source="remoteok",
@@ -31,7 +33,8 @@ def fetch() -> list[RawJob]:
                 url=posting.get("url", ""),
                 remote=True,
                 posted_at=posting.get("date"),
-                description_snippet=(posting.get("description") or "")[:300],
+                description_snippet=description_full[:300],
+                description_full=description_full,
             )
         )
     return jobs

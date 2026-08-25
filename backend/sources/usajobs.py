@@ -3,6 +3,7 @@ import httpx
 from backend.config import USAJOBS_API_KEY, USAJOBS_USER_AGENT
 from backend.config import TARGET_CITIES
 from backend.sources.base import RawJob
+from backend.util import strip_html
 
 SEARCH_URL = "https://data.usajobs.gov/api/search"
 KEYWORDS = "software engineer"
@@ -38,6 +39,8 @@ def fetch() -> list[RawJob]:
                 d = item.get("MatchedObjectDescriptor", {})
                 locations = d.get("PositionLocation") or []
                 location_text = locations[0].get("LocationName", "") if locations else city
+                details = d.get("UserArea", {}).get("Details", {})
+                description_full = strip_html(details.get("JobSummary") or "")
                 jobs.append(
                     RawJob(
                         source="usajobs",
@@ -47,7 +50,8 @@ def fetch() -> list[RawJob]:
                         location_text=location_text,
                         url=d.get("PositionURI", ""),
                         posted_at=d.get("PublicationStartDate"),
-                        description_snippet=(d.get("UserArea", {}).get("Details", {}).get("JobSummary") or "")[:300],
+                        description_snippet=description_full[:300],
+                        description_full=description_full,
                     )
                 )
     return jobs

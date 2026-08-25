@@ -2,6 +2,7 @@ import httpx
 
 from backend.config import ADZUNA_APP_ID, ADZUNA_APP_KEY
 from backend.sources.base import RawJob
+from backend.util import strip_html
 
 SEARCH_URL = "https://api.adzuna.com/v1/api/jobs/{country}/search/1"
 
@@ -38,6 +39,7 @@ def fetch() -> list[RawJob]:
 
             for posting in data.get("results", []):
                 location = posting.get("location", {}).get("display_name", "")
+                description_full = strip_html(posting.get("description") or "")
                 jobs.append(
                     RawJob(
                         source="adzuna",
@@ -47,7 +49,8 @@ def fetch() -> list[RawJob]:
                         location_text=location,
                         url=posting.get("redirect_url", ""),
                         posted_at=posting.get("created"),
-                        description_snippet=(posting.get("description") or "")[:300],
+                        description_snippet=description_full[:300],
+                        description_full=description_full,
                     )
                 )
     return jobs

@@ -9,6 +9,9 @@ load_dotenv(BASE_DIR / ".env")
 DB_PATH = BASE_DIR / "jobs.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
+UPLOAD_DIR = BASE_DIR / "uploads" / "cvs"
+MAX_CV_BYTES = 15 * 1024 * 1024  # 15MB
+
 POLL_INTERVAL_MINUTES = int(os.getenv("POLL_INTERVAL_MINUTES", "60"))
 
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID", "")
@@ -16,6 +19,9 @@ ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY", "")
 REED_API_KEY = os.getenv("REED_API_KEY", "")
 USAJOBS_API_KEY = os.getenv("USAJOBS_API_KEY", "")
 USAJOBS_USER_AGENT = os.getenv("USAJOBS_USER_AGENT", "")
+
+GITHUB_USERNAME = os.getenv("GITHUB_USERNAME", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Primary target cities from the user's passport/eligibility set (US, UK, Israel).
 # lat/lon center the map pin; radius_km is used when a source supports geo search.

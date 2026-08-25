@@ -34,7 +34,13 @@ def poll_all_sources() -> dict[str, int]:
                 job_id = f"{raw.source}:{raw.external_id}"
                 existing = session.get(Job, job_id)
                 if existing is not None:
-                    continue  # already known; leave seen/first_seen_at untouched
+                    # Already known; leave seen/first_seen_at untouched, but backfill
+                    # fields that didn't exist when this row was first inserted.
+                    if not existing.description_full and raw.description_full:
+                        existing.description_full = raw.description_full
+                        existing.description_snippet = raw.description_snippet
+                        session.add(existing)
+                    continue
 
                 job = Job(
                     id=job_id,
@@ -48,6 +54,7 @@ def poll_all_sources() -> dict[str, int]:
                     posted_at=raw.posted_at,
                     seen=False,
                     description_snippet=raw.description_snippet,
+                    description_full=raw.description_full,
                 )
                 session.add(job)
                 count += 1

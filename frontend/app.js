@@ -1,169 +1,952 @@
-const map = L.map("map", { worldCopyJump: true }).setView([35, -30], 3);
+(function () {
+  "use strict";
 
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-  attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
-  maxZoom: 19,
-}).addTo(map);
+  const SRC_LABEL = {
+    greenhouse: "Greenhouse", lever: "Lever", remoteok: "RemoteOK",
+    adzuna: "Adzuna", reed: "Reed", usajobs: "USAJobs",
+  };
+  function srcColor(source) { return getComputedStyle(document.documentElement).getPropertyValue("--src-" + source).trim() || "#2fe7c4"; }
+  function srcVar(source) { return "var(--src-" + source + ")"; }
 
-const state = {
-  cities: [],
-  markers: {},
-  currentJobs: [],
-  mode: { type: "all" }, // {type: "all"} | {type: "city", key} | {type: "remote"}
-  showEu: true,
-};
+  const map = L.map("map", { worldCopyJump: true, zoomControl: true }).setView([35, -30], 3);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  }).addTo(map);
 
-const els = {
-  search: document.getElementById("search"),
-  toggleEu: document.getElementById("toggle-eu"),
-  toggleRemote: document.getElementById("toggle-remote"),
-  refreshBtn: document.getElementById("refresh-btn"),
-  refreshStatus: document.getElementById("refresh-status"),
-  sidebarTitle: document.getElementById("sidebar-title"),
-  sidebarCount: document.getElementById("sidebar-count"),
-  jobList: document.getElementById("job-list"),
-};
+  const els = {
+    search: document.getElementById("search"),
+    toggleEu: document.getElementById("toggle-eu"),
+    refreshBtn: document.getElementById("refresh-btn"),
+    refreshStatus: document.getElementById("refresh-status"),
+    statTotal: document.getElementById("stat-total"),
+    statNew: document.getElementById("stat-new"),
+    clock: document.getElementById("clock"),
+    remotePin: document.getElementById("remote-pin"),
+    remoteCount: document.getElementById("remote-count"),
+    panel: document.getElementById("panel"),
+    panelBackdrop: document.getElementById("panel-backdrop"),
+    panelCity: document.getElementById("panel-city"),
+    panelCount: document.getElementById("panel-count"),
+    panelList: document.getElementById("panel-list"),
+    panelNetwork: document.getElementById("panel-network"),
+    networkCanvas: document.getElementById("network-canvas"),
+    networkReadout: document.getElementById("network-readout"),
+    networkLegend: document.getElementById("network-legend"),
+    panelClose: document.getElementById("panel-close"),
 
-function cityIcon(city) {
-  const count = city.unseen_jobs;
-  const size = count > 0 ? Math.min(44, 26 + count * 2) : 22;
-  const tierClass = city.tier === "primary" ? "primary" : "eu";
-  const pinClass = city.total_jobs === 0 ? "empty" : tierClass;
-  const ring = count > 0 ? `<div class="ping-ring"></div>` : "";
-  const label = count > 0 ? count : "";
+    hubBtn: document.getElementById("hub-btn"),
+    hubPanel: document.getElementById("hub-panel"),
+    hubBackdrop: document.getElementById("hub-backdrop"),
+    hubClose: document.getElementById("hub-close"),
+    hubCount: document.getElementById("hub-count"),
+    cvForm: document.getElementById("cv-form"),
+    cvFile: document.getElementById("cv-file"),
+    cvLabel: document.getElementById("cv-label"),
+    cvRoleType: document.getElementById("cv-role-type"),
+    cvFormStatus: document.getElementById("cv-form-status"),
+    cvGrid: document.getElementById("cv-grid"),
+    projectForm: document.getElementById("project-form"),
+    projectTitle: document.getElementById("project-title"),
+    projectTags: document.getElementById("project-tags"),
+    projectLink: document.getElementById("project-link"),
+    projectDescription: document.getElementById("project-description"),
+    projectFormStatus: document.getElementById("project-form-status"),
+    projectGrid: document.getElementById("project-grid"),
+    hubCvsTab: document.getElementById("hub-cvs"),
+    hubProjectsTab: document.getElementById("hub-projects"),
+    hubGithubTab: document.getElementById("hub-github"),
+    hubTabs: document.getElementById("hub-tabs"),
+    hubDialIndicator: document.getElementById("hub-dial-indicator"),
+    githubStatus: document.getElementById("github-status"),
+    githubGrid: document.getElementById("github-grid"),
 
-  return L.divIcon({
-    className: "",
-    html: `<div class="city-pin-wrapper" style="width:${size}px;height:${size}px;">
-             ${ring}
-             <div class="city-pin ${pinClass}" style="width:${size}px;height:${size}px;">${label}</div>
-           </div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
-}
+    jobModal: document.getElementById("job-modal"),
+    jobBackdrop: document.getElementById("job-backdrop"),
+    jobModalClose: document.getElementById("job-modal-close"),
+    jobModalCompany: document.getElementById("job-modal-company"),
+    jobModalTitle: document.getElementById("job-modal-title"),
+    jobModalMeta: document.getElementById("job-modal-meta"),
+    jobModalDescription: document.getElementById("job-modal-description"),
+    jobModalNotesInput: document.getElementById("job-modal-notes-input"),
+    jobModalNotesSave: document.getElementById("job-modal-notes-save"),
+    jobModalNotesStatus: document.getElementById("job-modal-notes-status"),
+    jobModalView: document.getElementById("job-modal-view"),
+    jobModalApplyBtn: document.getElementById("job-modal-apply-btn"),
+    jobModalApply: document.getElementById("job-modal-apply"),
+    jobModalApplyCv: document.getElementById("job-modal-apply-cv"),
+  };
 
-async function loadCities() {
-  const res = await fetch("/api/cities");
-  state.cities = await res.json();
+  const state = {
+    cities: [],          // raw /api/cities rows
+    markers: {},         // city.key -> Leaflet marker
+    showEu: true,
+    openBubble: null,    // { key, label, jobs }
+    mode: "list",
+    filterText: "",
+    cvs: [],
+    projects: [],
+    githubConfigured: false,
+    githubRepos: [],
+    currentJob: null,
+  };
 
-  Object.values(state.markers).forEach((m) => map.removeLayer(m));
-  state.markers = {};
+  let net = null;
+  let minimap = null;
 
-  for (const city of state.cities) {
-    if (city.tier === "eu" && !state.showEu) continue;
-    const marker = L.marker([city.lat, city.lon], { icon: cityIcon(city) }).addTo(map);
-    marker.bindTooltip(`${city.label} — ${city.total_jobs} job${city.total_jobs === 1 ? "" : "s"}`);
-    marker.on("click", () => selectCity(city.key, city.label));
-    state.markers[city.key] = marker;
-  }
-}
+  // ---------- utility ----------
 
-function selectCity(key, label) {
-  state.mode = { type: "city", key };
-  els.toggleRemote.checked = false;
-  els.sidebarTitle.textContent = label;
-  loadJobs();
-}
-
-function selectRemote() {
-  state.mode = { type: "remote" };
-  els.sidebarTitle.textContent = "Remote roles";
-  loadJobs();
-}
-
-function selectAll() {
-  state.mode = { type: "all" };
-  els.sidebarTitle.textContent = "All target cities";
-  loadJobs();
-}
-
-async function loadJobs() {
-  let url = "/api/jobs?";
-  if (state.mode.type === "city") url += `city=${encodeURIComponent(state.mode.key)}`;
-  else if (state.mode.type === "remote") url += `remote=true`;
-  // "all" mode: no filter params, fetch everything and let sidebar show latest
-
-  const res = await fetch(url);
-  state.currentJobs = await res.json();
-  renderJobs();
-}
-
-function renderJobs() {
-  const query = els.search.value.trim().toLowerCase();
-  let jobs = state.currentJobs;
-  if (query) {
-    jobs = jobs.filter(
-      (j) => j.title.toLowerCase().includes(query) || j.company.toLowerCase().includes(query)
-    );
-  }
-  jobs = [...jobs].sort((a, b) => new Date(b.first_seen_at) - new Date(a.first_seen_at));
-
-  els.sidebarCount.textContent = `${jobs.length} job${jobs.length === 1 ? "" : "s"}`;
-  els.jobList.innerHTML = "";
-
-  if (jobs.length === 0) {
-    els.jobList.innerHTML = `<div class="empty-state">No jobs yet. Try "Refresh now", or wait for the next scheduled poll.</div>`;
-    return;
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str || "";
+    return div.innerHTML;
   }
 
-  for (const job of jobs) {
-    const card = document.createElement("div");
-    card.className = `job-card ${job.seen ? "" : "unseen"}`;
-    card.innerHTML = `
-      <div class="job-title">${escapeHtml(job.title)}</div>
-      <div class="job-meta">${escapeHtml(job.company)} — ${escapeHtml(job.location_text || "Remote")}</div>
-      <div class="job-source">${job.source}</div>
-    `;
-    card.addEventListener("click", () => openJob(job));
-    els.jobList.appendChild(card);
-  }
-}
+  function truncate(str, n) { return str.length > n ? str.slice(0, n - 1) + "…" : str; }
 
-async function openJob(job) {
-  if (!job.seen) {
-    await fetch(`/api/jobs/${encodeURIComponent(job.id)}/seen`, { method: "POST" });
+  function groupCompanies(jobs) {
+    const order = [];
+    const map = new Map();
+    jobs.forEach(job => {
+      if (!map.has(job.company)) { map.set(job.company, []); order.push(job.company); }
+      map.get(job.company).push(job);
+    });
+    return order.map(company => ({ company, jobs: map.get(company) }));
+  }
+
+  // ---------- bubble minimap ----------
+
+  function mountMinimap(lat, lon) {
+    destroyMinimap();
+    minimap = L.map("panel-minimap", {
+      zoomControl: false, attributionControl: false,
+      dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+      boxZoom: false, keyboard: false, touchZoom: false, tap: false,
+    }).setView([lat, lon], 12);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(minimap);
+    L.circleMarker([lat, lon], { radius: 5, color: "#2fe7c4", weight: 1.5, fillColor: "#2fe7c4", fillOpacity: 0.9 }).addTo(minimap);
+  }
+
+  function destroyMinimap() {
+    if (minimap) { minimap.remove(); minimap = null; }
+    const el = document.getElementById("panel-minimap");
+    if (el) el._leaflet_id = null;
+  }
+
+  // ---------- markers ----------
+
+  function pinIcon(city) {
+    const unseen = city.unseen_jobs;
+    const size = city.total_jobs === 0 ? 14 : Math.min(38, 16 + city.total_jobs * 2.4);
+    const classes = ["pin-icon"];
+    if (unseen > 0) classes.push("has-new");
+    if (city.total_jobs === 0) classes.push("pin-dim");
+    if (city.tier === "eu") classes.push("tier-eu");
+    return L.divIcon({
+      className: "",
+      html:
+        '<div class="' + classes.join(" ") + '" style="width:' + size + 'px;height:' + size + 'px;">' +
+          '<span class="pin-pulse"></span>' +
+          '<span class="pin-dot"></span>' +
+          (unseen > 0 ? '<span class="pin-count">' + unseen + '</span>' : '') +
+        '</div>',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+  }
+
+  async function loadCities() {
+    const res = await fetch("/api/cities");
+    state.cities = await res.json();
+
+    Object.values(state.markers).forEach(m => map.removeLayer(m));
+    state.markers = {};
+
+    state.cities.forEach(city => {
+      if (city.tier === "eu" && !state.showEu) return;
+      const marker = L.marker([city.lat, city.lon], { icon: pinIcon(city) }).addTo(map);
+      marker.bindTooltip(city.label + " — " + city.total_jobs + " job" + (city.total_jobs === 1 ? "" : "s"));
+      marker.on("click", () => openBubble(city.key, city.label));
+      state.markers[city.key] = marker;
+    });
+
+    renderStats();
+  }
+
+  async function loadRemoteSummary() {
+    const res = await fetch("/api/jobs?remote=true");
+    const jobs = await res.json();
+    const unseen = jobs.filter(j => !j.seen).length;
+    els.remotePin.classList.toggle("has-new", unseen > 0);
+    if (unseen > 0) { els.remoteCount.hidden = false; els.remoteCount.textContent = unseen; }
+    else { els.remoteCount.hidden = true; }
+    state.remoteTotal = jobs.length;
+    state.remoteUnseen = unseen;
+    renderStats();
+  }
+
+  function renderStats() {
+    const citiesTotal = state.cities.reduce((s, c) => s + c.total_jobs, 0);
+    const citiesUnseen = state.cities.reduce((s, c) => s + c.unseen_jobs, 0);
+    els.statTotal.textContent = citiesTotal + (state.remoteTotal || 0);
+    els.statNew.textContent = citiesUnseen + (state.remoteUnseen || 0);
+  }
+
+  // ---------- bubble open/close ----------
+
+  async function openBubble(key, label) {
+    state.mode = "list";
+    document.querySelectorAll("[data-mode]").forEach(b => {
+      const active = b.dataset.mode === "list";
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", String(active));
+    });
+    els.panelList.hidden = false;
+    els.panelNetwork.hidden = true;
+    stopNetwork();
+
+    const url = key === "remote" ? "/api/jobs?remote=true" : "/api/jobs?city=" + encodeURIComponent(key);
+    const res = await fetch(url);
+    const jobs = await res.json();
+    state.openBubble = { key, label, jobs };
+
+    renderCasefile();
+    const city = state.cities.find(c => c.key === key);
+    if (city) mountMinimap(city.lat, city.lon);
+    else destroyMinimap();
+
+    els.panel.classList.add("open");
+    els.panelBackdrop.classList.add("open");
+  }
+
+  function closeBubble() {
+    state.openBubble = null;
+    els.panel.classList.remove("open");
+    els.panelBackdrop.classList.remove("open");
+    stopNetwork();
+    destroyMinimap();
+  }
+
+  // ---------- list view ----------
+
+  function matchesFilter(job) {
+    if (!state.filterText) return true;
+    const q = state.filterText;
+    return job.title.toLowerCase().includes(q) || job.company.toLowerCase().includes(q);
+  }
+
+  function renderCasefile() {
+    const bubble = state.openBubble;
+    if (!bubble) return;
+    els.panelCity.textContent = bubble.label;
+    const unseen = bubble.jobs.filter(j => !j.seen).length;
+    els.panelCount.textContent = bubble.jobs.length + " signal" + (bubble.jobs.length === 1 ? "" : "s") + (unseen ? " · " + unseen + " new" : "");
+    renderList();
+  }
+
+  function renderList() {
+    const bubble = state.openBubble;
+    if (!bubble) return;
+    els.panelList.innerHTML = "";
+
+    const visibleJobs = bubble.jobs.filter(matchesFilter);
+    if (visibleJobs.length === 0) {
+      els.panelList.innerHTML = '<div class="empty-state">' + (bubble.jobs.length === 0 ? "No signals detected yet." : "No roles match that filter.") + '</div>';
+      return;
+    }
+
+    groupCompanies(visibleJobs).forEach(group => {
+      const unseenN = group.jobs.filter(j => !j.seen).length;
+      const card = document.createElement("div");
+      card.className = "company-card";
+      card.innerHTML =
+        '<button class="company-head" type="button">' +
+          '<span class="company-name">' + escapeHtml(group.company) + '</span>' +
+          '<span class="company-sub"><span class="chevron">▾</span>' + group.jobs.length + ' role' + (group.jobs.length === 1 ? "" : "s") + (unseenN ? " · " + unseenN + " new" : "") + '</span>' +
+        '</button>' +
+        '<div class="company-roles"></div>';
+      const rolesEl = card.querySelector(".company-roles");
+      group.jobs.forEach(job => {
+        const row = document.createElement("div");
+        row.className = "job-row" + (job.seen ? " is-seen" : "");
+        row.innerHTML =
+          '<span class="job-title">' + escapeHtml(job.title) + '</span>' +
+          (job.seen ? '<span></span>' : '<span class="job-new-tag">New</span>') +
+          '<span class="job-meta"><span class="src-dot" style="background:' + srcVar(job.source) + '"></span>' +
+            escapeHtml(job.location_text || "Remote") + ' &middot; ' + SRC_LABEL[job.source] + '</span>';
+        row.addEventListener("click", () => openJobModal(job));
+        rolesEl.appendChild(row);
+      });
+      card.querySelector(".company-head").addEventListener("click", () => card.classList.toggle("collapsed"));
+      els.panelList.appendChild(card);
+    });
+  }
+
+  async function markSeen(job) {
+    if (job.seen) return;
+    await fetch("/api/jobs/" + encodeURIComponent(job.id) + "/seen", { method: "POST" });
     job.seen = true;
-    renderJobs();
-    loadCities();
+    renderCasefile();
+    if (state.mode === "network" && net) initNetworkCanvas();
+    if (state.openBubble) updateLocalUnseenCount(state.openBubble.key, -1);
   }
-  window.open(job.url, "_blank", "noopener");
-}
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str || "";
-  return div.innerHTML;
-}
+  function updateLocalUnseenCount(key, delta) {
+    if (key === "remote") {
+      state.remoteUnseen = Math.max(0, (state.remoteUnseen || 0) + delta);
+      els.remotePin.classList.toggle("has-new", state.remoteUnseen > 0);
+      if (state.remoteUnseen > 0) { els.remoteCount.hidden = false; els.remoteCount.textContent = state.remoteUnseen; }
+      else els.remoteCount.hidden = true;
+    } else {
+      const city = state.cities.find(c => c.key === key);
+      if (city) {
+        city.unseen_jobs = Math.max(0, city.unseen_jobs + delta);
+        const marker = state.markers[key];
+        if (marker) marker.setIcon(pinIcon(city));
+      }
+    }
+    renderStats();
+  }
 
-async function refresh() {
-  els.refreshBtn.disabled = true;
-  els.refreshStatus.textContent = "Refreshing...";
-  try {
-    const res = await fetch("/api/refresh", { method: "POST" });
+  // ---------- job detail modal ----------
+
+  function openJobModal(job) {
+    state.currentJob = job;
+    markSeen(job);
+
+    els.jobModalTitle.textContent = job.title;
+    els.jobModalCompany.textContent = job.company;
+
+    let posted = null;
+    if (job.posted_at) {
+      const d = new Date(job.posted_at);
+      if (!isNaN(d.getTime())) posted = d.toLocaleDateString();
+    }
+    const metaParts = [
+      job.remote ? "Remote" : (job.location_text || null),
+      SRC_LABEL[job.source] || job.source,
+      posted ? "Posted " + posted : null,
+    ].filter(Boolean);
+    els.jobModalMeta.innerHTML = metaParts.map(p => "<span>" + escapeHtml(p) + "</span>").join("");
+
+    els.jobModalDescription.textContent = job.description_full || job.description_snippet || "No description was provided by the source.";
+    els.jobModalNotesInput.value = job.notes || "";
+    els.jobModalNotesStatus.textContent = "";
+    els.jobModalView.href = job.url;
+    els.jobModalApply.hidden = true;
+    renderApplyCvOptions();
+
+    els.jobModal.classList.add("open");
+    els.jobBackdrop.classList.add("open");
+  }
+
+  function closeJobModal() {
+    els.jobModal.classList.remove("open");
+    els.jobBackdrop.classList.remove("open");
+    state.currentJob = null;
+  }
+
+  function renderApplyCvOptions() {
+    if (state.cvs.length === 0) {
+      els.jobModalApplyCv.innerHTML = '<option value="">No CVs yet — add one in the Dossier</option>';
+    } else {
+      els.jobModalApplyCv.innerHTML = state.cvs.map(cv =>
+        '<option value="' + cv.id + '">' + escapeHtml(cv.label) + (cv.role_type ? " — " + escapeHtml(cv.role_type) : "") + '</option>'
+      ).join("");
+    }
+  }
+
+  els.jobModalClose.addEventListener("click", closeJobModal);
+  els.jobBackdrop.addEventListener("click", closeJobModal);
+
+  els.jobModalNotesSave.addEventListener("click", async () => {
+    const job = state.currentJob;
+    if (!job) return;
+    els.jobModalNotesStatus.textContent = "Saving…";
+    try {
+      await fetch("/api/jobs/" + encodeURIComponent(job.id) + "/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: els.jobModalNotesInput.value }),
+      });
+      job.notes = els.jobModalNotesInput.value;
+      els.jobModalNotesStatus.textContent = "Saved";
+    } catch (e) {
+      els.jobModalNotesStatus.textContent = "Failed to save";
+    }
+    setTimeout(() => (els.jobModalNotesStatus.textContent = ""), 2500);
+  });
+
+  els.jobModalApplyBtn.addEventListener("click", () => {
+    els.jobModalApply.hidden = !els.jobModalApply.hidden;
+  });
+
+  // ---------- dossier hub (CVs + projects + github) ----------
+
+  function openHub() {
+    closeBubble();
+    els.hubPanel.classList.add("open");
+    els.hubBackdrop.classList.add("open");
+    loadCVs();
+    loadProjects();
+    loadGithub();
+    positionHubDialIndicator(document.querySelector('[data-hub-tab].active'));
+  }
+
+  function closeHub() {
+    els.hubPanel.classList.remove("open");
+    els.hubBackdrop.classList.remove("open");
+  }
+
+  function positionHubDialIndicator(btn) {
+    if (!btn) return;
+    els.hubDialIndicator.style.width = btn.offsetWidth + "px";
+    els.hubDialIndicator.style.transform = "translateX(" + (btn.offsetLeft - 2) + "px)";
+  }
+
+  els.hubBtn.addEventListener("click", openHub);
+  els.hubClose.addEventListener("click", closeHub);
+  els.hubBackdrop.addEventListener("click", closeHub);
+
+  document.querySelectorAll("[data-hub-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("[data-hub-tab]").forEach(b => {
+        const active = b === btn;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-selected", String(active));
+      });
+      const tab = btn.dataset.hubTab;
+      els.hubCvsTab.hidden = tab !== "cvs";
+      els.hubProjectsTab.hidden = tab !== "projects";
+      els.hubGithubTab.hidden = tab !== "github";
+      positionHubDialIndicator(btn);
+    });
+  });
+
+  window.addEventListener("resize", () => {
+    if (els.hubPanel.classList.contains("open")) {
+      positionHubDialIndicator(document.querySelector('[data-hub-tab].active'));
+    }
+  });
+
+  async function loadGithub() {
+    const res = await fetch("/api/github/repos");
     const data = await res.json();
-    els.refreshStatus.textContent = `+${data.total_new} new`;
-  } catch (e) {
-    els.refreshStatus.textContent = "Refresh failed";
+    state.githubConfigured = data.configured;
+    state.githubRepos = data.repos || [];
+    renderGithubGrid(data);
+    updateHubCount();
   }
-  await loadCities();
-  await loadJobs();
-  els.refreshBtn.disabled = false;
-  setTimeout(() => (els.refreshStatus.textContent = ""), 4000);
-}
 
-els.search.addEventListener("input", renderJobs);
-els.refreshBtn.addEventListener("click", refresh);
-els.toggleEu.addEventListener("change", () => {
-  state.showEu = els.toggleEu.checked;
-  loadCities();
-});
-els.toggleRemote.addEventListener("change", () => {
-  if (els.toggleRemote.checked) selectRemote();
-  else selectAll();
-});
+  function renderGithubGrid(data) {
+    els.githubGrid.innerHTML = "";
+    if (!data.configured) {
+      els.githubStatus.innerHTML = "GitHub isn't connected yet. Add <code>GITHUB_USERNAME</code> (public repos) or <code>GITHUB_TOKEN</code> (public + private) to your <code>.env</code> file, then reopen the Dossier.";
+      return;
+    }
+    if (data.error) {
+      els.githubStatus.textContent = "Couldn't reach GitHub: " + data.error;
+      return;
+    }
+    if (data.repos.length === 0) {
+      els.githubStatus.textContent = "No repositories found.";
+      return;
+    }
+    els.githubStatus.textContent = "";
+    data.repos.forEach(repo => {
+      const card = document.createElement("div");
+      card.className = "hub-card";
+      const tag = (repo.private ? "Private" : "Public") + (repo.language ? " · " + repo.language : "");
+      const updated = repo.updated_at ? new Date(repo.updated_at).toLocaleDateString() : "";
+      card.innerHTML =
+        '<div class="hub-card-title">' + escapeHtml(repo.name) + '</div>' +
+        '<span class="hub-card-tag' + (repo.private ? " hub-card-tag--private" : "") + '">' + escapeHtml(tag) + '</span>' +
+        (repo.description ? '<div class="hub-card-desc">' + escapeHtml(repo.description) + '</div>' : "") +
+        '<div class="hub-card-meta">' + (updated ? "Updated " + updated : "") + (repo.stars ? " &middot; &#9733; " + repo.stars : "") + '</div>' +
+        '<div class="hub-card-actions"><a href="' + escapeHtml(repo.url) + '" target="_blank" rel="noopener">Open</a></div>';
+      els.githubGrid.appendChild(card);
+    });
+  }
 
-(async function init() {
-  await loadCities();
-  await loadJobs();
+  async function loadCVs() {
+    const res = await fetch("/api/cvs");
+    state.cvs = await res.json();
+    renderCvGrid();
+    renderApplyCvOptions();
+    updateHubCount();
+  }
+
+  function renderCvGrid() {
+    if (state.cvs.length === 0) {
+      els.cvGrid.innerHTML = '<div class="hub-empty">No CVs uploaded yet.</div>';
+      return;
+    }
+    els.cvGrid.innerHTML = "";
+    state.cvs.forEach(cv => {
+      const card = document.createElement("div");
+      card.className = "hub-card";
+      card.innerHTML =
+        '<div class="hub-card-title">' + escapeHtml(cv.label) + '</div>' +
+        (cv.role_type ? '<span class="hub-card-tag">' + escapeHtml(cv.role_type) + '</span>' : "") +
+        '<div class="hub-card-meta">' + escapeHtml(cv.original_name) + ' &middot; ' + new Date(cv.uploaded_at).toLocaleDateString() + '</div>' +
+        '<div class="hub-card-actions">' +
+          '<a href="/api/cvs/' + cv.id + '/file" target="_blank" rel="noopener">View</a>' +
+          '<button type="button" data-delete-cv="' + cv.id + '">Delete</button>' +
+        '</div>';
+      card.querySelector("[data-delete-cv]").addEventListener("click", () => deleteCv(cv.id));
+      els.cvGrid.appendChild(card);
+    });
+  }
+
+  async function deleteCv(id) {
+    await fetch("/api/cvs/" + id, { method: "DELETE" });
+    await loadCVs();
+  }
+
+  els.cvForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    const file = els.cvFile.files[0];
+    if (!file) return;
+    els.cvFormStatus.textContent = "Uploading…";
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("label", els.cvLabel.value);
+    formData.append("role_type", els.cvRoleType.value);
+    try {
+      const res = await fetch("/api/cvs", { method: "POST", body: formData });
+      if (!res.ok) throw new Error((await res.json()).detail || "upload failed");
+      els.cvForm.reset();
+      els.cvFormStatus.textContent = "Uploaded";
+      await loadCVs();
+    } catch (err) {
+      els.cvFormStatus.textContent = err.message || "Upload failed";
+    }
+    setTimeout(() => (els.cvFormStatus.textContent = ""), 2500);
+  });
+
+  async function loadProjects() {
+    const res = await fetch("/api/projects");
+    state.projects = await res.json();
+    renderProjectGrid();
+    updateHubCount();
+  }
+
+  function renderProjectGrid() {
+    if (state.projects.length === 0) {
+      els.projectGrid.innerHTML = '<div class="hub-empty">No projects added yet.</div>';
+      return;
+    }
+    els.projectGrid.innerHTML = "";
+    state.projects.forEach(project => {
+      const tags = (project.tags || "").split(",").map(t => t.trim()).filter(Boolean);
+      const card = document.createElement("div");
+      card.className = "hub-card";
+      card.innerHTML =
+        '<div class="hub-card-title">' + escapeHtml(project.title) + '</div>' +
+        tags.map(t => '<span class="hub-card-tag">' + escapeHtml(t) + '</span>').join(" ") +
+        (project.description ? '<div class="hub-card-desc">' + escapeHtml(project.description) + '</div>' : "") +
+        '<div class="hub-card-actions">' +
+          (project.link ? '<a href="' + escapeHtml(project.link) + '" target="_blank" rel="noopener">Open link</a>' : "") +
+          '<button type="button" data-delete-project="' + project.id + '">Delete</button>' +
+        '</div>';
+      card.querySelector("[data-delete-project]").addEventListener("click", () => deleteProject(project.id));
+      els.projectGrid.appendChild(card);
+    });
+  }
+
+  async function deleteProject(id) {
+    await fetch("/api/projects/" + id, { method: "DELETE" });
+    await loadProjects();
+  }
+
+  els.projectForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    els.projectFormStatus.textContent = "Saving…";
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: els.projectTitle.value,
+          description: els.projectDescription.value,
+          tags: els.projectTags.value,
+          link: els.projectLink.value,
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      els.projectForm.reset();
+      els.projectFormStatus.textContent = "Added";
+      await loadProjects();
+    } catch (err) {
+      els.projectFormStatus.textContent = "Failed to save";
+    }
+    setTimeout(() => (els.projectFormStatus.textContent = ""), 2500);
+  });
+
+  function updateHubCount() {
+    let text = state.cvs.length + " CV" + (state.cvs.length === 1 ? "" : "s") + " · " + state.projects.length + " project" + (state.projects.length === 1 ? "" : "s");
+    if (state.githubConfigured) {
+      const n = (state.githubRepos || []).length;
+      text += " · " + n + " repo" + (n === 1 ? "" : "s");
+    }
+    els.hubCount.textContent = text;
+  }
+
+  // ---------- mode toggle ----------
+
+  document.querySelectorAll("[data-mode]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.mode = btn.dataset.mode;
+      document.querySelectorAll("[data-mode]").forEach(b => {
+        const active = b === btn;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-selected", String(active));
+      });
+      if (state.mode === "network") {
+        els.panelList.hidden = true;
+        els.panelNetwork.hidden = false;
+        startNetwork();
+      } else {
+        els.panelNetwork.hidden = true;
+        els.panelList.hidden = false;
+        stopNetwork();
+      }
+    });
+  });
+
+  els.panelClose.addEventListener("click", closeBubble);
+  els.panelBackdrop.addEventListener("click", closeBubble);
+  els.remotePin.addEventListener("click", () => openBubble("remote", "Remote"));
+
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (els.jobModal.classList.contains("open")) closeJobModal();
+    else if (els.hubPanel.classList.contains("open")) closeHub();
+    else if (state.openBubble) closeBubble();
+  });
+
+  window.addEventListener("resize", () => {
+    if (!state.openBubble) return;
+    if (minimap) minimap.invalidateSize();
+    if (state.mode === "network" && net) initNetworkCanvas();
+  });
+
+  els.search.addEventListener("input", () => {
+    state.filterText = els.search.value.trim().toLowerCase();
+    if (state.openBubble) renderList();
+  });
+
+  els.toggleEu.addEventListener("change", () => {
+    state.showEu = els.toggleEu.checked;
+    loadCities();
+  });
+
+  els.refreshBtn.addEventListener("click", refresh);
+
+  async function refresh() {
+    els.refreshBtn.disabled = true;
+    els.refreshStatus.textContent = "Refreshing…";
+    try {
+      const res = await fetch("/api/refresh", { method: "POST" });
+      const data = await res.json();
+      els.refreshStatus.textContent = "+" + data.total_new + " new";
+    } catch (e) {
+      els.refreshStatus.textContent = "Refresh failed";
+    }
+    await loadCities();
+    await loadRemoteSummary();
+    if (state.openBubble) closeBubble();
+    els.refreshBtn.disabled = false;
+    setTimeout(() => (els.refreshStatus.textContent = ""), 4000);
+  }
+
+  // ---------- network view (city -> company -> role) ----------
+
+  function startNetwork() {
+    initNetworkCanvas();
+    els.networkCanvas.addEventListener("pointermove", onNetPointerMove);
+    els.networkCanvas.addEventListener("pointerdown", onNetPointerDown);
+    window.addEventListener("pointerup", onNetPointerUp);
+    window.addEventListener("pointermove", onNetPointerDrag);
+  }
+
+  function stopNetwork() {
+    net = null;
+    els.networkCanvas.removeEventListener("pointermove", onNetPointerMove);
+    els.networkCanvas.removeEventListener("pointerdown", onNetPointerDown);
+    window.removeEventListener("pointerup", onNetPointerUp);
+    window.removeEventListener("pointermove", onNetPointerDrag);
+  }
+
+  function initNetworkCanvas() {
+    const bubble = state.openBubble;
+    if (!bubble) return;
+    const rect = els.panelNetwork.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    els.networkCanvas.width = rect.width * dpr;
+    els.networkCanvas.height = rect.height * dpr;
+    const ctx = els.networkCanvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const jobs = bubble.jobs.filter(matchesFilter);
+    const groups = groupCompanies(jobs);
+    const companyTargetR = Math.max(50, Math.min(rect.width, rect.height) / 2 - 74);
+    const roleTargetR = 32;
+
+    const prevCollapsed = new Map();
+    if (net) net.companyNodes.forEach(cn => prevCollapsed.set(cn.group.company, cn.collapsed));
+
+    const companyNodes = groups.map((g, i) => {
+      const angle = (i / Math.max(1, groups.length)) * Math.PI * 2 - Math.PI / 2;
+      return {
+        type: "company", group: g, angle,
+        collapsed: prevCollapsed.get(g.company) || false,
+        x: cx + Math.cos(angle) * companyTargetR * 0.6,
+        y: cy + Math.sin(angle) * companyTargetR * 0.6,
+        vx: 0, vy: 0, r: companyTargetR, dragging: false,
+      };
+    });
+
+    const roleNodes = [];
+    companyNodes.forEach(cn => {
+      const k = cn.group.jobs.length;
+      cn.group.jobs.forEach((job, j) => {
+        const spread = 0.55;
+        const roleAngle = cn.angle + (k > 1 ? (j - (k - 1) / 2) * (spread / (k - 1)) : 0);
+        roleNodes.push({
+          type: "role", job, parent: cn, angle: roleAngle,
+          x: cn.x + Math.cos(roleAngle) * roleTargetR,
+          y: cn.y + Math.sin(roleAngle) * roleTargetR,
+          vx: 0, vy: 0, r: roleTargetR, dragging: false,
+        });
+      });
+    });
+
+    net = { ctx, w: rect.width, h: rect.height, cx, cy, companyNodes, roleNodes, hovered: null, dragNode: null, dragStartX: 0, dragStartY: 0, roleByJob: new Map(roleNodes.map(rn => [rn.job, rn])) };
+
+    // Settle the layout once up front so it reads as a static diagram, not a jittering simulation.
+    for (let i = 0; i < 160; i++) stepNetwork();
+
+    renderLegend(jobs);
+    drawNetwork();
+  }
+
+  function renderLegend(jobs) {
+    const sources = Array.from(new Set(jobs.map(j => j.source)));
+    els.networkLegend.innerHTML = sources.map(s => '<span><i style="background:' + srcVar(s) + '"></i>' + SRC_LABEL[s] + '</span>').join("");
+  }
+
+  function visibleRoleNodes() { return net ? net.roleNodes.filter(n => !n.parent.collapsed) : []; }
+  function allNodes() { return net ? net.companyNodes.concat(visibleRoleNodes()) : []; }
+
+  function stepNetwork() {
+    if (!net) return;
+    const nodes = allNodes();
+    nodes.forEach(node => {
+      if (node.dragging) return;
+      const centerX = node.type === "company" ? net.cx : node.parent.x;
+      const centerY = node.type === "company" ? net.cy : node.parent.y;
+      const dx = node.x - centerX, dy = node.y - centerY;
+      const dist = Math.hypot(dx, dy) || 0.001;
+      const diff = (node.r - dist) * 0.05;
+      node.vx += (dx / dist) * diff;
+      node.vy += (dy / dist) * diff;
+    });
+    nodes.forEach((node, i) => {
+      if (node.dragging) return;
+      nodes.forEach((other, j) => {
+        if (i === j) return;
+        const ox = node.x - other.x, oy = node.y - other.y;
+        const od = Math.hypot(ox, oy) || 0.001;
+        const bothCompany = node.type === "company" && other.type === "company";
+        const minD = bothCompany ? 76 : (node.type === "company" || other.type === "company") ? 44 : 38;
+        if (od < minD) {
+          const push = (minD - od) * 0.025;
+          node.vx += (ox / od) * push;
+          node.vy += (oy / od) * push;
+        }
+      });
+      node.vx *= 0.82;
+      node.vy *= 0.82;
+      node.x += node.vx;
+      node.y += node.vy;
+    });
+  }
+
+  function drawCurve(ctx, x1, y1, x2, y2, color, bend) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const midx = (x1 + x2) / 2 + (y2 - y1) * bend;
+    const midy = (y1 + y2) / 2 - (x2 - x1) * bend;
+    ctx.quadraticCurveTo(midx, midy, x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawDot(ctx, x, y, r, fill, glow) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.shadowColor = fill;
+    ctx.shadowBlur = glow || 0;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawNetwork() {
+    if (!net) return;
+    const { ctx, w, h, cx, cy, companyNodes, hovered } = net;
+    ctx.clearRect(0, 0, w, h);
+
+    companyNodes.forEach(cn => {
+      drawCurve(ctx, cx, cy, cn.x, cn.y, hovered === cn ? "rgba(47,231,196,0.55)" : "rgba(47,231,196,0.2)", 0.06);
+    });
+    companyNodes.forEach(cn => {
+      if (cn.collapsed) return;
+      cn.group.jobs.forEach(job => {
+        const rn = net.roleByJob.get(job);
+        drawCurve(ctx, cn.x, cn.y, rn.x, rn.y, hovered === rn ? "rgba(47,231,196,0.5)" : "rgba(47,231,196,0.14)", 0.04);
+      });
+    });
+
+    drawDot(ctx, cx, cy, 9, "#2fe7c4", 12);
+
+    const labelsAlwaysOn = companyNodes.length <= 8;
+    companyNodes.forEach(cn => {
+      const isHover = hovered === cn;
+      ctx.beginPath();
+      ctx.arc(cn.x, cn.y, isHover ? 9 : 7.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#0d1719";
+      ctx.strokeStyle = isHover ? "#d8f3ee" : "#6f9296";
+      ctx.lineWidth = 1.4;
+      ctx.fill();
+      ctx.stroke();
+      if (labelsAlwaysOn || isHover) {
+        ctx.font = "600 10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = isHover ? "#d8f3ee" : "#9db8ba";
+        ctx.textAlign = "center";
+        ctx.fillText(truncate(cn.group.company, 12), cn.x, cn.y - 14);
+      }
+      if (cn.collapsed) {
+        ctx.font = "600 9px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = "#2fe7c4";
+        ctx.fillText("+" + cn.group.jobs.length, cn.x, cn.y + 3.5);
+      }
+    });
+
+    visibleRoleNodes().forEach(rn => {
+      const isHover = hovered === rn;
+      const color = srcColor(rn.job.source);
+      drawDot(ctx, rn.x, rn.y, isHover ? 7 : 5, color, isHover ? 12 : 4);
+      if (!rn.job.seen) {
+        ctx.beginPath();
+        ctx.arc(rn.x + 5, rn.y - 5, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = "#ff4d4d";
+        ctx.fill();
+      }
+      if (isHover) {
+        ctx.font = "9px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = "#d8f3ee";
+        ctx.textAlign = "center";
+        ctx.fillText(truncate(rn.job.title, 22), rn.x, rn.y + 16);
+      }
+    });
+  }
+
+  function nodeAt(x, y) {
+    const nodes = allNodes();
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i];
+      const threshold = node.type === "company" ? 13 : 11;
+      if (Math.hypot(node.x - x, node.y - y) < threshold) return node;
+    }
+    return null;
+  }
+
+  function canvasPoint(e) {
+    const rect = els.networkCanvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function onNetPointerMove(e) {
+    if (!net) return;
+    const p = canvasPoint(e);
+    const node = nodeAt(p.x, p.y);
+    net.hovered = node;
+    els.networkCanvas.style.cursor = node ? "pointer" : "default";
+    if (node && node.type === "role") {
+      const job = node.job;
+      els.networkReadout.textContent = job.title + " — " + job.company + " — " + SRC_LABEL[job.source] + (!job.seen ? " — new" : "");
+    } else if (node && node.type === "company") {
+      els.networkReadout.textContent = node.group.company + " — " + node.group.jobs.length + " role" + (node.group.jobs.length === 1 ? "" : "s") + (node.collapsed ? " (collapsed, click to expand)" : " (click to collapse)");
+    } else {
+      els.networkReadout.textContent = "Hover a node to inspect. Click a company to expand or collapse it.";
+    }
+    drawNetwork();
+  }
+
+  function onNetPointerDown(e) {
+    if (!net) return;
+    const p = canvasPoint(e);
+    const node = nodeAt(p.x, p.y);
+    if (node) {
+      net.dragNode = node;
+      node.dragging = true;
+      net.dragStartX = node.x;
+      net.dragStartY = node.y;
+    }
+  }
+
+  function onNetPointerDrag(e) {
+    if (!net || !net.dragNode) return;
+    const node = net.dragNode;
+    const p = canvasPoint(e);
+    const newX = Math.max(10, Math.min(net.w - 10, p.x));
+    const newY = Math.max(10, Math.min(net.h - 10, p.y));
+    const dx = newX - node.x, dy = newY - node.y;
+    node.x = newX;
+    node.y = newY;
+    if (node.type === "company") {
+      // Roles are anchored to their company's live position, so move them along rigidly.
+      net.roleNodes.filter(rn => rn.parent === node).forEach(rn => { rn.x += dx; rn.y += dy; });
+    }
+    drawNetwork();
+  }
+
+  function onNetPointerUp() {
+    if (!net || !net.dragNode) return;
+    const node = net.dragNode;
+    node.dragging = false;
+    const moved = Math.hypot(node.x - net.dragStartX, node.y - net.dragStartY);
+    if (moved < 3) {
+      if (node.type === "company") {
+        node.collapsed = !node.collapsed;
+        drawNetwork();
+        renderCasefile();
+      } else {
+        openJobModal(node.job);
+      }
+    }
+    net.dragNode = null;
+  }
+
+  // ---------- clock ----------
+
+  function tickClock() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    els.clock.textContent = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+  }
+
+  // ---------- init ----------
+
+  (async function init() {
+    await loadCities();
+    await loadRemoteSummary();
+    await loadCVs();
+    tickClock();
+    setInterval(tickClock, 1000);
+  })();
 })();

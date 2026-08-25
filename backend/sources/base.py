@@ -12,3 +12,4 @@ class RawJob:
     remote: bool = False
     posted_at: str | None = None
     description_snippet: str = ""
+    description_full: str = ""

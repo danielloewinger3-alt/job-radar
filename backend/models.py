@@ -17,3 +17,24 @@ class Job(SQLModel, table=True):
     first_seen_at: datetime = Field(default_factory=datetime.utcnow)
     seen: bool = Field(default=False, index=True)
     description_snippet: str = ""
+    description_full: str = ""  # plain-text, HTML stripped
+    notes: str = ""  # user-entered: pay grade, start date, interview process, etc.
+
+
+class CV(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    label: str  # e.g. "Backend SWE resume"
+    role_type: str = ""  # freeform tag, e.g. "Backend", "Data", "ML"
+    filename: str  # stored filename on disk
+    original_name: str  # original upload filename
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    notes: str = ""
+
+
+class Project(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    description: str = ""
+    tags: str = ""  # comma-separated freeform tags
+    link: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
