@@ -202,16 +202,18 @@
       <button id="prospects-back-btn" class="hud-btn hud-btn--ghost" type="button" hidden>&#8592; All UK</button>
     </div>
     <div class="prospects-city-controls" id="prospects-city-controls" hidden>
-      <div class="prospects-categories" id="prospects-categories"></div>
       <div class="job-modal-apply-row">
-        <button id="prospects-scan-btn" class="hud-btn hud-btn--accent" type="button">Scan selected categories</button>
+        <button id="prospects-scan-btn" class="hud-btn hud-btn--accent" type="button">Scan checked categories</button>
         <button id="prospects-analyze-btn" class="hud-btn" type="button">Analyze next 10</button>
         <span id="prospects-status" class="refresh-status"></span>
       </div>
     </div>
     <div class="prospects-map-body">
-      <div id="prospects-map"></div>
-      <div class="prospects-map-overlay" aria-hidden="true"></div>
+      <aside class="prospects-sidebar" id="prospects-sidebar" hidden></aside>
+      <div class="prospects-map-wrap">
+        <div id="prospects-map"></div>
+        <div class="prospects-map-overlay" aria-hidden="true"></div>
+      </div>
     </div>
   </div>
 </div>

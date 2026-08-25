@@ -49,6 +49,7 @@ all that software/AI could improve in a way the owner would realistically pay fo
 evidenced problems over generic claims that a business "could use AI."
 
 Respond in exactly this format, nothing else:
+DESCRIPTION: <one plain sentence on what this business actually does, based on the evidence given>
 OPPORTUNITIES:
 - <concrete opportunity>: <one-sentence reason tied to specific evidence you were given>
 - <concrete opportunity>: <one-sentence reason>
@@ -75,8 +76,8 @@ def fetch_website_text(url: str) -> str:
         return ""
 
 
-def analyze_business(name: str, category_label: str, website_text: str) -> tuple[str, str]:
-    """Returns (opportunity_summary, comma_separated_tags)."""
+def analyze_business(name: str, category_label: str, website_text: str) -> tuple[str, str, str]:
+    """Returns (description, opportunity_summary, comma_separated_tags)."""
     client = anthropic.Anthropic()
     evidence = f"Website content (fetched live, truncated):\n{website_text}" if website_text else "No usable website content was found for this business."
     user = f"Business: {name}\nCategory: {category_label}\n\n{evidence}"
@@ -89,7 +90,13 @@ def analyze_business(name: str, category_label: str, website_text: str) -> tuple
     )
     text = "".join(block.text for block in response.content if block.type == "text").strip()
 
+    description = ""
+    if text.startswith("DESCRIPTION:"):
+        description, _, text = text.partition("OPPORTUNITIES:")
+        description = description.replace("DESCRIPTION:", "", 1).strip()
+        text = "OPPORTUNITIES:" + text if text else text
+
     if "TAGS:" in text:
         summary, _, tag_line = text.partition("TAGS:")
-        return summary.strip(), tag_line.strip()
-    return text, ""
+        return description, summary.strip(), tag_line.strip()
+    return description, text, ""

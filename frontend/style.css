@@ -838,29 +838,6 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   border-bottom: 1px solid var(--grid-line);
 }
 
-.prospects-categories {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.7rem;
-  max-height: 110px;
-  overflow-y: auto;
-  padding: 0.15rem;
-}
-
-.category-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border: 1px solid var(--panel-edge);
-  background: rgba(255,255,255,0.02);
-  padding: 0.3rem 0.55rem;
-  font-size: 0.66rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  border-radius: 2px;
-}
-.category-chip input { accent-color: var(--accent); }
 .coverage-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .coverage-dot.good { background: var(--accent); }
 .coverage-dot.fair { background: var(--src-remoteok); }
@@ -872,7 +849,67 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   min-height: 0;
   border-top: 1px solid var(--grid-line);
   overflow: hidden;
+  display: flex;
 }
+
+.prospects-sidebar {
+  width: 300px;
+  flex: none;
+  overflow-y: auto;
+  border-right: 1px solid var(--grid-line);
+  background: rgba(7,13,14,0.5);
+}
+.prospects-sidebar[hidden] { display: none; }
+
+.prospect-category-section { border-bottom: 1px solid var(--grid-line); }
+.prospect-category-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+}
+.prospect-category-header:hover { background: rgba(255,255,255,0.03); }
+.prospect-category-header input { accent-color: var(--accent); flex: none; }
+.prospect-category-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.sector-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.prospect-category-name { font-size: 0.68rem; color: var(--text); flex: 1; }
+.prospect-category-count {
+  font-size: 0.6rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  background: rgba(255,255,255,0.05);
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+.prospect-category-header .chevron { color: var(--text-faint); font-size: 0.6rem; transition: transform 0.15s ease; flex: none; }
+.prospect-category-section.expanded .chevron { transform: rotate(90deg); }
+.prospect-category-businesses { display: none; padding-bottom: 0.4rem; }
+.prospect-category-section.expanded .prospect-category-businesses { display: block; }
+
+.prospect-business-row {
+  padding: 0.4rem 0.75rem 0.4rem 1.7rem;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.prospect-business-row:hover { background: rgba(47,231,196,0.05); border-left-color: var(--accent); }
+.prospect-business-name { font-size: 0.68rem; color: var(--text); }
+.prospect-business-desc { font-size: 0.62rem; color: var(--text-dim); line-height: 1.4; margin-top: 0.1rem; }
+.prospect-business-pending { font-size: 0.6rem; color: var(--text-faint); font-style: italic; margin-top: 0.1rem; }
+
+.prospects-map-wrap { position: relative; flex: 1; min-height: 0; }
 #prospects-map { position: absolute; inset: 0; z-index: 0; background: var(--panel); }
 #prospects-map .leaflet-control-container { display: none; }
 
@@ -921,9 +958,21 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   text-shadow: 0 0 6px rgba(7,11,12,0.9);
 }
 
-.biz-pin { border-radius: 50%; border: 1.5px solid var(--text-faint); background: rgba(255,255,255,0.08); }
-.biz-pin.no-website { border-color: var(--src-remoteok); background: rgba(255,180,84,0.25); }
-.biz-pin.analyzed { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 8px rgba(47,231,196,0.6); }
+/* Fill color = sector (set inline per pin). Opacity = reviewed state (secondary
+   encoding, since 23 categories can't each get a distinct hue). Corner dot =
+   no website found, a strong opportunity signal on its own. */
+.biz-pin-wrap { position: relative; }
+.biz-pin { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.5); opacity: 0.55; }
+.biz-pin-wrap.analyzed .biz-pin { opacity: 1; box-shadow: 0 0 8px currentColor; }
+.biz-pin-wrap.no-website::after {
+  content: "";
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--alert);
+  box-shadow: 0 0 4px rgba(255,77,77,0.8);
+}
 
 .leaflet-popup-content-wrapper {
   background: var(--panel-glass);
@@ -952,6 +1001,7 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   margin: 0.15rem 0 0.4rem;
 }
 .biz-popup-meta { font-size: 0.66rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 0.4rem; }
+.biz-popup-desc { font-size: 0.68rem; color: var(--text); line-height: 1.5; margin-bottom: 0.4rem; }
 .biz-popup-meta a { color: var(--accent); text-decoration: none; }
 .biz-popup-meta a:hover { text-decoration: underline; }
 

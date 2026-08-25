@@ -99,7 +99,7 @@
     prospectsStats: document.getElementById("prospects-stats"),
     prospectsBackBtn: document.getElementById("prospects-back-btn"),
     prospectsCityControls: document.getElementById("prospects-city-controls"),
-    prospectsCategories: document.getElementById("prospects-categories"),
+    prospectsSidebar: document.getElementById("prospects-sidebar"),
     prospectsScanBtn: document.getElementById("prospects-scan-btn"),
     prospectsAnalyzeBtn: document.getElementById("prospects-analyze-btn"),
     prospectsStatus: document.getElementById("prospects-status"),
@@ -120,6 +120,7 @@
     currentJob: null,
     currentApplication: null,
     prospectAreas: [],
+    prospectSectors: {},
     prospectCategories: [],
     prospectsCurrentArea: null,
     businesses: [],
@@ -1081,6 +1082,7 @@
   let prospectsMap = null;
   let prospectsAreaMarkers = {};
   let prospectsBizMarkers = [];
+  let prospectsBizMarkerById = {};
 
   function openProspects() {
     closeBubble();
@@ -1112,35 +1114,97 @@
     const res = await fetch("/api/prospects/areas");
     const data = await res.json();
     state.prospectAreas = data.areas;
-    if (state.prospectCategories.length === 0) {
-      state.prospectCategories = data.categories;
-      renderCategoryPicker();
-    }
+    state.prospectSectors = data.sectors || {};
+    state.prospectCategories = data.categories;
   }
-
-  function renderCategoryPicker() {
-    els.prospectsCategories.innerHTML = state.prospectCategories.map(cat =>
-      '<label class="category-chip">' +
-        '<input type="checkbox" value="' + cat.key + '"' + (cat.osm_coverage === "good" ? " checked" : "") + ' />' +
-        '<span class="coverage-dot ' + cat.osm_coverage + '" title="' + cat.osm_coverage + ' data coverage"></span>' +
-        escapeHtml(cat.label) +
-      '</label>'
-    ).join("");
-  }
-
-  els.prospectsCategories.addEventListener("change", () => {
-    if (state.prospectsCurrentArea && prospectsMap) renderBizMarkers();
-  });
 
   function categoryLabel(key) {
     const cat = state.prospectCategories.find(c => c.key === key);
     return cat ? cat.label : key;
   }
 
+  function sectorColor(categoryKey) {
+    const cat = state.prospectCategories.find(c => c.key === categoryKey);
+    const sector = cat && state.prospectSectors[cat.sector];
+    return sector ? sector.color : "#6f9296";
+  }
+
+  function checkedCategories() {
+    return new Set(Array.from(els.prospectsSidebar.querySelectorAll("input:checked")).map(i => i.dataset.category));
+  }
+
+  function groupByCategory(businesses) {
+    const map = {};
+    businesses.forEach(b => {
+      (map[b.category] = map[b.category] || []).push(b);
+    });
+    return map;
+  }
+
+  function renderSidebar() {
+    const grouped = groupByCategory(state.businesses);
+    const prevChecked = checkedCategories();
+    const prevExpanded = new Set(Array.from(els.prospectsSidebar.querySelectorAll(".prospect-category-section.expanded")).map(s => s.dataset.category));
+
+    els.prospectsSidebar.innerHTML = state.prospectCategories.map(cat => {
+      const businesses = grouped[cat.key] || [];
+      const isChecked = prevChecked.size > 0 ? prevChecked.has(cat.key) : cat.osm_coverage === "good";
+      const color = sectorColor(cat.key);
+      const rows = businesses.map(b => {
+        const detail = b.analyzed_at
+          ? '<div class="prospect-business-desc">' + escapeHtml(b.description || "No description.") + '</div>'
+          : '<div class="prospect-business-pending">Not analyzed yet</div>';
+        return '<div class="prospect-business-row" data-business-id="' + escapeHtml(b.id) + '">' +
+          '<div class="prospect-business-name">' + escapeHtml(b.name) + '</div>' + detail +
+        '</div>';
+      }).join("") || '<div class="prospect-business-pending" style="padding:0.3rem 0.75rem;">No businesses discovered yet.</div>';
+
+      return (
+        '<div class="prospect-category-section' + (prevExpanded.has(cat.key) ? " expanded" : "") + '" data-category="' + cat.key + '">' +
+          '<div class="prospect-category-header">' +
+            '<input type="checkbox" data-category="' + cat.key + '"' + (isChecked ? " checked" : "") + ' />' +
+            '<button type="button" class="prospect-category-toggle">' +
+              '<span class="sector-dot" style="background:' + color + '"></span>' +
+              '<span class="prospect-category-name">' + escapeHtml(cat.label) + '</span>' +
+              '<span class="prospect-category-count">' + businesses.length + '</span>' +
+              '<span class="chevron">&#9656;</span>' +
+            '</button>' +
+          '</div>' +
+          '<div class="prospect-category-businesses">' + rows + '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  els.prospectsSidebar.addEventListener("change", e => {
+    if (e.target.matches('input[type="checkbox"]')) renderBizMarkers();
+  });
+
+  els.prospectsSidebar.addEventListener("click", e => {
+    const toggle = e.target.closest(".prospect-category-toggle");
+    if (toggle) {
+      toggle.closest(".prospect-category-section").classList.toggle("expanded");
+      return;
+    }
+    const row = e.target.closest(".prospect-business-row");
+    if (row) {
+      const business = state.businesses.find(b => b.id === row.dataset.businessId);
+      if (business) focusBusiness(business);
+    }
+  });
+
+  function focusBusiness(business) {
+    const marker = prospectsBizMarkerById[business.id];
+    if (!marker) return;
+    prospectsMap.flyTo([business.lat, business.lon], Math.max(prospectsMap.getZoom(), 15), { duration: 0.6 });
+    marker.openPopup();
+  }
+
   async function showUkView() {
     state.prospectsCurrentArea = null;
     els.prospectsBackBtn.hidden = true;
     els.prospectsCityControls.hidden = true;
+    els.prospectsSidebar.hidden = true;
     clearBizMarkers();
     await loadProspectMeta();
     renderAreaMarkers();
@@ -1179,6 +1243,7 @@
     const area = state.prospectAreas.find(a => a.key === areaKey);
     els.prospectsBackBtn.hidden = false;
     els.prospectsCityControls.hidden = false;
+    els.prospectsSidebar.hidden = false;
     Object.values(prospectsAreaMarkers).forEach(m => prospectsMap.removeLayer(m));
     if (area) prospectsMap.setView([area.lat, area.lon], 12);
     await loadBusinesses();
@@ -1186,7 +1251,7 @@
 
   els.prospectsScanBtn.addEventListener("click", async () => {
     const areaKey = state.prospectsCurrentArea;
-    const checked = Array.from(els.prospectsCategories.querySelectorAll("input:checked")).map(i => i.value);
+    const checked = Array.from(checkedCategories());
     if (!areaKey || checked.length === 0) return;
     els.prospectsScanBtn.disabled = true;
     els.prospectsStatus.textContent = "Scanning " + checked.length + " categor" + (checked.length === 1 ? "y" : "ies") + " via OpenStreetMap…";
@@ -1234,6 +1299,7 @@
     if (!areaKey) return;
     const res = await fetch("/api/prospects/" + areaKey + "/businesses");
     state.businesses = await res.json();
+    renderSidebar();
     renderBizMarkers();
     updateProspectsStats();
   }
@@ -1241,10 +1307,7 @@
   function clearBizMarkers() {
     prospectsBizMarkers.forEach(m => prospectsMap.removeLayer(m));
     prospectsBizMarkers = [];
-  }
-
-  function checkedCategories() {
-    return new Set(Array.from(els.prospectsCategories.querySelectorAll("input:checked")).map(i => i.value));
+    prospectsBizMarkerById = {};
   }
 
   function renderBizMarkers() {
@@ -1252,16 +1315,18 @@
     const checked = checkedCategories();
     const visible = checked.size === 0 ? state.businesses : state.businesses.filter(b => checked.has(b.category));
     visible.forEach(business => {
-      const cls = business.analyzed_at ? "analyzed" : (!business.website ? "no-website" : "");
+      const color = sectorColor(business.category);
+      const cls = (business.analyzed_at ? "analyzed " : "") + (!business.website ? "no-website" : "");
       const icon = L.divIcon({
         className: "",
-        html: '<div class="biz-pin ' + cls + '" style="width:12px;height:12px;"></div>',
+        html: '<div class="biz-pin-wrap ' + cls + '" style="width:12px;height:12px;color:' + color + ';"><span class="biz-pin" style="background:' + color + '"></span></div>',
         iconSize: [12, 12],
         iconAnchor: [6, 6],
       });
       const marker = L.marker([business.lat, business.lon], { icon }).addTo(prospectsMap);
       marker.bindPopup(renderBusinessPopup(business), { maxWidth: 300 });
       prospectsBizMarkers.push(marker);
+      prospectsBizMarkerById[business.id] = marker;
     });
   }
 
@@ -1287,10 +1352,13 @@
       opportunitySection = '<div class="opportunity-summary">Not analyzed yet — click "Analyze next 10" above.</div>';
     }
 
+    const description = business.description ? '<div class="biz-popup-desc">' + escapeHtml(business.description) + '</div>' : "";
+
     return (
       '<div class="biz-popup-title">' + escapeHtml(business.name) + '</div>' +
       '<div class="biz-popup-category">' + escapeHtml(categoryLabel(business.category)) + '</div>' +
       '<div class="biz-popup-meta">' + escapeHtml(business.address || "") + '<br>' + links + '</div>' +
+      description +
       chStatus +
       opportunitySection
     );

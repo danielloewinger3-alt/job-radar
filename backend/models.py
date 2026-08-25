@@ -73,6 +73,7 @@ class Business(SQLModel, table=True):
     website: str = ""
     companies_house_number: str = ""
     companies_house_status: str = ""  # e.g. "active", "active — accounts overdue", "dissolved"
+    description: str = ""  # Claude's one-line summary of what the business actually does
     opportunity_summary: str = ""  # Claude's assessment against the opportunity rubric
     opportunity_tags: str = ""  # comma-separated matched opportunity categories
     analyzed_at: Optional[datetime] = None

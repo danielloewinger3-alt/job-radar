@@ -21,6 +21,7 @@ from backend.config import (
     MAX_CV_BYTES,
     OPENAI_API_KEY,
     PROSPECT_AREAS,
+    SECTORS,
     TARGET_CITIES,
     UPLOAD_DIR,
 )
@@ -379,6 +380,7 @@ def get_prospect_areas():
             areas.append({"key": key, **area, "total_businesses": total, "unanalyzed_businesses": unanalyzed})
     return {
         "areas": areas,
+        "sectors": {k: v for k, v in SECTORS.items()},
         "categories": [{"key": k, **v} for k, v in BUSINESS_CATEGORIES.items()],
     }
 

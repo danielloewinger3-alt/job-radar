@@ -72,7 +72,8 @@ def analyze_pending(area_key: str, limit: int = 10) -> int:
                 business.companies_house_status = ch["status"]
 
             try:
-                summary, tags = analyze_business(business.name, category_label, website_text)
+                description, summary, tags = analyze_business(business.name, category_label, website_text)
+                business.description = description
                 business.opportunity_summary = summary
                 business.opportunity_tags = tags
             except Exception:

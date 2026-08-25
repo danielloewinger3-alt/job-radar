@@ -109,32 +109,49 @@ PROSPECT_AREAS = {
     "bristol": {"label": "Bristol", "lat": 51.4545, "lon": -2.5879, "radius_km": 8},
 }
 
+# Sectors group the 23 categories into 7 for map-pin coloring. Individually hueing
+# all 23 would fail standard categorical-palette limits (~8 max distinguishable hues)
+# and be illegible at map-pin size anyway; the category's own label is always shown
+# as text alongside its color, so color is never the only signal for which of the
+# 23 it actually is. Hex values are the dark-mode steps of a CVD-validated 8-hue
+# categorical palette (validated against this app's #070b0c ground), minus the red
+# slot, which stays reserved for the app's existing alert/status color.
+SECTORS = {
+    "health":       {"label": "Health & Care", "color": "#3987e5"},
+    "property":     {"label": "Property", "color": "#d95926"},
+    "trades":       {"label": "Trades & Construction", "color": "#199e70"},
+    "automotive":   {"label": "Automotive", "color": "#c98500"},
+    "professional": {"label": "Professional & Financial", "color": "#d55181"},
+    "fitness_beauty": {"label": "Fitness & Beauty", "color": "#008300"},
+    "hospitality":  {"label": "Hospitality", "color": "#9085e9"},
+}
+
 # OSM tag -> our category. OSM only maps businesses with a physical, publicly-visible
 # location, so coverage is good for storefronts (dentists, salons, gyms, estate agents)
 # and weak-to-empty for van-based trades (plumbers, electricians, cleaners, landscapers)
 # that don't have a mapped premises. osm_coverage flags that honestly for the UI.
 BUSINESS_CATEGORIES = {
-    "dentist":        {"label": "Dentists", "osm_coverage": "good", "tags": [("amenity", "dentist")]},
-    "medical_clinic": {"label": "Medical & Health Clinics", "osm_coverage": "good", "tags": [("amenity", "clinic"), ("amenity", "doctors")]},
-    "physio":         {"label": "Physio & Osteopaths", "osm_coverage": "fair", "tags": [("healthcare", "physiotherapist")]},
-    "estate_agent":   {"label": "Estate & Letting Agents", "osm_coverage": "good", "tags": [("office", "estate_agent")]},
-    "builder":        {"label": "Builders & Construction", "osm_coverage": "poor", "tags": [("craft", "builder")]},
-    "plumber":        {"label": "Plumbers", "osm_coverage": "poor", "tags": [("craft", "plumber")]},
-    "electrician":    {"label": "Electricians", "osm_coverage": "poor", "tags": [("craft", "electrician")]},
-    "hvac":           {"label": "Heating / HVAC", "osm_coverage": "poor", "tags": [("craft", "hvac")]},
-    "roofer":         {"label": "Roofing", "osm_coverage": "poor", "tags": [("craft", "roofer")]},
-    "landscaper":     {"label": "Landscaping", "osm_coverage": "poor", "tags": [("craft", "gardener")]},
-    "car_repair":     {"label": "Garages & MOT Centres", "osm_coverage": "good", "tags": [("shop", "car_repair")]},
-    "car_dealer":     {"label": "Car Dealerships", "osm_coverage": "good", "tags": [("shop", "car")]},
-    "recruitment":    {"label": "Recruitment Agencies", "osm_coverage": "fair", "tags": [("office", "employment_agency")]},
-    "accountant":     {"label": "Accountants & Bookkeepers", "osm_coverage": "good", "tags": [("office", "accountant")]},
-    "financial":      {"label": "Mortgage / Insurance / IFA", "osm_coverage": "fair", "tags": [("office", "financial"), ("office", "insurance")]},
-    "lawyer":         {"label": "Law Firms", "osm_coverage": "good", "tags": [("office", "lawyer")]},
-    "gym":            {"label": "Gyms & Personal Training", "osm_coverage": "good", "tags": [("leisure", "fitness_centre")]},
-    "sports_facility":{"label": "Padel / Tennis / Sports", "osm_coverage": "good", "tags": [("leisure", "sports_centre")]},
-    "beauty":         {"label": "Beauty Salons", "osm_coverage": "good", "tags": [("shop", "beauty")]},
-    "hair":           {"label": "Hair Salons & Barbers", "osm_coverage": "good", "tags": [("shop", "hairdresser")]},
-    "cleaning":       {"label": "Cleaning Companies", "osm_coverage": "poor", "tags": [("craft", "cleaning")]},
-    "hotel":          {"label": "Independent Hotels", "osm_coverage": "good", "tags": [("tourism", "hotel")]},
-    "restaurant":     {"label": "Restaurants & Hospitality", "osm_coverage": "good", "tags": [("amenity", "restaurant")]},
+    "dentist":        {"label": "Dentists", "sector": "health", "osm_coverage": "good", "tags": [("amenity", "dentist")]},
+    "medical_clinic": {"label": "Medical & Health Clinics", "sector": "health", "osm_coverage": "good", "tags": [("amenity", "clinic"), ("amenity", "doctors")]},
+    "physio":         {"label": "Physio & Osteopaths", "sector": "health", "osm_coverage": "fair", "tags": [("healthcare", "physiotherapist")]},
+    "estate_agent":   {"label": "Estate & Letting Agents", "sector": "property", "osm_coverage": "good", "tags": [("office", "estate_agent")]},
+    "builder":        {"label": "Builders & Construction", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "builder")]},
+    "plumber":        {"label": "Plumbers", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "plumber")]},
+    "electrician":    {"label": "Electricians", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "electrician")]},
+    "hvac":           {"label": "Heating / HVAC", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "hvac")]},
+    "roofer":         {"label": "Roofing", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "roofer")]},
+    "landscaper":     {"label": "Landscaping", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "gardener")]},
+    "cleaning":       {"label": "Cleaning Companies", "sector": "trades", "osm_coverage": "poor", "tags": [("craft", "cleaning")]},
+    "car_repair":     {"label": "Garages & MOT Centres", "sector": "automotive", "osm_coverage": "good", "tags": [("shop", "car_repair")]},
+    "car_dealer":     {"label": "Car Dealerships", "sector": "automotive", "osm_coverage": "good", "tags": [("shop", "car")]},
+    "recruitment":    {"label": "Recruitment Agencies", "sector": "professional", "osm_coverage": "fair", "tags": [("office", "employment_agency")]},
+    "accountant":     {"label": "Accountants & Bookkeepers", "sector": "professional", "osm_coverage": "good", "tags": [("office", "accountant")]},
+    "financial":      {"label": "Mortgage / Insurance / IFA", "sector": "professional", "osm_coverage": "fair", "tags": [("office", "financial"), ("office", "insurance")]},
+    "lawyer":         {"label": "Law Firms", "sector": "professional", "osm_coverage": "good", "tags": [("office", "lawyer")]},
+    "gym":            {"label": "Gyms & Personal Training", "sector": "fitness_beauty", "osm_coverage": "good", "tags": [("leisure", "fitness_centre")]},
+    "sports_facility":{"label": "Padel / Tennis / Sports", "sector": "fitness_beauty", "osm_coverage": "good", "tags": [("leisure", "sports_centre")]},
+    "beauty":         {"label": "Beauty Salons", "sector": "fitness_beauty", "osm_coverage": "good", "tags": [("shop", "beauty")]},
+    "hair":           {"label": "Hair Salons & Barbers", "sector": "fitness_beauty", "osm_coverage": "good", "tags": [("shop", "hairdresser")]},
+    "hotel":          {"label": "Independent Hotels", "sector": "hospitality", "osm_coverage": "good", "tags": [("tourism", "hotel")]},
+    "restaurant":     {"label": "Restaurants & Hospitality", "sector": "hospitality", "osm_coverage": "good", "tags": [("amenity", "restaurant")]},
 }
