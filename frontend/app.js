@@ -56,10 +56,18 @@
     hubCvsTab: document.getElementById("hub-cvs"),
     hubProjectsTab: document.getElementById("hub-projects"),
     hubGithubTab: document.getElementById("hub-github"),
+    hubProfileTab: document.getElementById("hub-profile"),
     hubTabs: document.getElementById("hub-tabs"),
     hubDialIndicator: document.getElementById("hub-dial-indicator"),
     githubStatus: document.getElementById("github-status"),
     githubGrid: document.getElementById("github-grid"),
+    profileForm: document.getElementById("profile-form"),
+    profileFullName: document.getElementById("profile-full-name"),
+    profileEmail: document.getElementById("profile-email"),
+    profilePhone: document.getElementById("profile-phone"),
+    profileLinkedin: document.getElementById("profile-linkedin"),
+    profileLocation: document.getElementById("profile-location"),
+    profileFormStatus: document.getElementById("profile-form-status"),
 
     jobModal: document.getElementById("job-modal"),
     jobBackdrop: document.getElementById("job-backdrop"),
@@ -75,6 +83,14 @@
     jobModalApplyBtn: document.getElementById("job-modal-apply-btn"),
     jobModalApply: document.getElementById("job-modal-apply"),
     jobModalApplyCv: document.getElementById("job-modal-apply-cv"),
+    jobModalApplyStatus: document.getElementById("job-modal-apply-status"),
+    jobModalApplyNote: document.getElementById("job-modal-apply-note"),
+    jobModalGenerateBtn: document.getElementById("job-modal-generate-btn"),
+    jobModalApplyResult: document.getElementById("job-modal-apply-result"),
+    jobModalCoverLetter: document.getElementById("job-modal-cover-letter"),
+    jobModalReviewNotesText: document.getElementById("job-modal-review-notes-text"),
+    jobModalFeedback: document.getElementById("job-modal-feedback"),
+    jobModalReviseBtn: document.getElementById("job-modal-revise-btn"),
   };
 
   const state = {
@@ -89,6 +105,7 @@
     githubConfigured: false,
     githubRepos: [],
     currentJob: null,
+    currentApplication: null,
   };
 
   let net = null;
@@ -334,7 +351,11 @@
     els.jobModalNotesStatus.textContent = "";
     els.jobModalView.href = job.url;
     els.jobModalApply.hidden = true;
+    els.jobModalApplyStatus.textContent = "";
+    state.currentApplication = null;
+    els.jobModalApplyResult.hidden = true;
     renderApplyCvOptions();
+    loadExistingApplication(job.id);
 
     els.jobModal.classList.add("open");
     els.jobBackdrop.classList.add("open");
@@ -347,13 +368,33 @@
   }
 
   function renderApplyCvOptions() {
-    if (state.cvs.length === 0) {
+    const hasCv = state.cvs.length > 0;
+    els.jobModalGenerateBtn.disabled = !hasCv;
+    if (!hasCv) {
       els.jobModalApplyCv.innerHTML = '<option value="">No CVs yet — add one in the Dossier</option>';
     } else {
       els.jobModalApplyCv.innerHTML = state.cvs.map(cv =>
         '<option value="' + cv.id + '">' + escapeHtml(cv.label) + (cv.role_type ? " — " + escapeHtml(cv.role_type) : "") + '</option>'
       ).join("");
     }
+  }
+
+  async function loadExistingApplication(jobId) {
+    try {
+      const res = await fetch("/api/jobs/" + encodeURIComponent(jobId) + "/applications");
+      const applications = await res.json();
+      if (applications.length > 0 && state.currentJob && state.currentJob.id === jobId) {
+        renderApplication(applications[0]);
+      }
+    } catch (e) { /* no existing draft — fine */ }
+  }
+
+  function renderApplication(application) {
+    state.currentApplication = application;
+    els.jobModalCoverLetter.value = application.cover_letter;
+    els.jobModalReviewNotesText.textContent = application.review_notes || "Nothing flagged.";
+    els.jobModalApplyResult.hidden = false;
+    els.jobModalGenerateBtn.textContent = "Regenerate";
   }
 
   els.jobModalClose.addEventListener("click", closeJobModal);
@@ -381,6 +422,54 @@
     els.jobModalApply.hidden = !els.jobModalApply.hidden;
   });
 
+  els.jobModalGenerateBtn.addEventListener("click", async () => {
+    const job = state.currentJob;
+    const cvId = els.jobModalApplyCv.value;
+    if (!job || !cvId) return;
+    els.jobModalGenerateBtn.disabled = true;
+    els.jobModalApplyStatus.textContent = "Drafting… (Claude → GPT review → Claude revise, ~15s)";
+    try {
+      const res = await fetch("/api/jobs/" + encodeURIComponent(job.id) + "/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cv_id: Number(cvId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "generation failed");
+      renderApplication(data);
+      els.jobModalApplyStatus.textContent = "Ready";
+    } catch (err) {
+      els.jobModalApplyStatus.textContent = err.message;
+    }
+    els.jobModalGenerateBtn.disabled = false;
+    setTimeout(() => (els.jobModalApplyStatus.textContent = ""), 4000);
+  });
+
+  els.jobModalReviseBtn.addEventListener("click", async () => {
+    const application = state.currentApplication;
+    const feedback = els.jobModalFeedback.value.trim();
+    if (!application || !feedback) return;
+    els.jobModalReviseBtn.disabled = true;
+    els.jobModalApplyStatus.textContent = "Revising…";
+    try {
+      const res = await fetch("/api/applications/" + application.id + "/revise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "revision failed");
+      state.currentApplication = data;
+      els.jobModalCoverLetter.value = data.cover_letter;
+      els.jobModalFeedback.value = "";
+      els.jobModalApplyStatus.textContent = "Updated";
+    } catch (err) {
+      els.jobModalApplyStatus.textContent = err.message;
+    }
+    els.jobModalReviseBtn.disabled = false;
+    setTimeout(() => (els.jobModalApplyStatus.textContent = ""), 4000);
+  });
+
   // ---------- dossier hub (CVs + projects + github) ----------
 
   function openHub() {
@@ -390,6 +479,7 @@
     loadCVs();
     loadProjects();
     loadGithub();
+    loadProfile();
     positionHubDialIndicator(document.querySelector('[data-hub-tab].active'));
   }
 
@@ -419,6 +509,7 @@
       els.hubCvsTab.hidden = tab !== "cvs";
       els.hubProjectsTab.hidden = tab !== "projects";
       els.hubGithubTab.hidden = tab !== "github";
+      els.hubProfileTab.hidden = tab !== "profile";
       positionHubDialIndicator(btn);
     });
   });
@@ -581,6 +672,38 @@
       els.projectFormStatus.textContent = "Failed to save";
     }
     setTimeout(() => (els.projectFormStatus.textContent = ""), 2500);
+  });
+
+  async function loadProfile() {
+    const res = await fetch("/api/profile");
+    const profile = await res.json();
+    els.profileFullName.value = profile.full_name || "";
+    els.profileEmail.value = profile.email || "";
+    els.profilePhone.value = profile.phone || "";
+    els.profileLinkedin.value = profile.linkedin || "";
+    els.profileLocation.value = profile.location || "";
+  }
+
+  els.profileForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    els.profileFormStatus.textContent = "Saving…";
+    try {
+      await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: els.profileFullName.value,
+          email: els.profileEmail.value,
+          phone: els.profilePhone.value,
+          linkedin: els.profileLinkedin.value,
+          location: els.profileLocation.value,
+        }),
+      });
+      els.profileFormStatus.textContent = "Saved";
+    } catch (err) {
+      els.profileFormStatus.textContent = "Failed to save";
+    }
+    setTimeout(() => (els.profileFormStatus.textContent = ""), 2500);
   });
 
   function updateHubCount() {

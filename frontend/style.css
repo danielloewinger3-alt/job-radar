@@ -707,6 +707,61 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   line-height: 1.4;
 }
 
+.job-modal-apply-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; width: 100%; }
+.job-modal-apply-row input[type="text"] {
+  flex: 1;
+  min-width: 180px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--panel-edge);
+  color: var(--text);
+  padding: 0.4rem 0.6rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  border-radius: 2px;
+}
+
+.job-modal-apply-result { width: 100%; margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--grid-line); }
+.job-modal-apply-result label {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 0.35rem;
+}
+#job-modal-cover-letter {
+  width: 100%;
+  min-height: 160px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--panel-edge);
+  color: var(--text);
+  padding: 0.6rem 0.7rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  border-radius: 2px;
+  resize: vertical;
+}
+
+.job-modal-review-notes { margin: 0.6rem 0; }
+.job-modal-review-notes summary {
+  cursor: pointer;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.job-modal-review-notes summary:hover { color: var(--accent); }
+.job-modal-review-notes p {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.hub-form--profile input { width: 220px; }
+
 /* ---------- dossier: JARVIS-style lock-on frame + dial ---------- */
 
 .hub-bracket {

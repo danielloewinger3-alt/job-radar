@@ -38,3 +38,24 @@ class Project(SQLModel, table=True):
     tags: str = ""  # comma-separated freeform tags
     link: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Profile(SQLModel, table=True):
+    """Single-row table (id is always 1) used to personalize generated cover letters."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    full_name: str = ""
+    email: str = ""
+    phone: str = ""
+    linkedin: str = ""
+    location: str = ""
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Application(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_id: str = Field(index=True)
+    cv_id: Optional[int] = None
+    cover_letter: str = ""
+    review_notes: str = ""  # the reviewer model's critique, kept for transparency
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

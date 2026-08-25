@@ -1,6 +1,7 @@
 import logging
 import threading
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -10,9 +11,20 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlmodel import func, select
 
-from backend.config import ALL_CITIES, GITHUB_TOKEN, GITHUB_USERNAME, MAX_CV_BYTES, TARGET_CITIES, UPLOAD_DIR
+from backend.ai_apply import generate_application, revise_with_feedback
+from backend.config import (
+    ALL_CITIES,
+    ANTHROPIC_API_KEY,
+    GITHUB_TOKEN,
+    GITHUB_USERNAME,
+    MAX_CV_BYTES,
+    OPENAI_API_KEY,
+    TARGET_CITIES,
+    UPLOAD_DIR,
+)
+from backend.cv_text import extract_text as extract_cv_text
 from backend.db import get_session, init_db
-from backend.models import CV, Job, Project
+from backend.models import CV, Application, Job, Profile, Project
 from backend.poller import poll_all_sources
 from backend import scheduler as scheduler_module
 
@@ -237,6 +249,117 @@ def github_repos():
         if isinstance(r, dict) and "name" in r
     ]
     return {"configured": True, "repos": repos}
+
+
+# ---------- profile ----------
+
+class ProfileIn(BaseModel):
+    full_name: str = ""
+    email: str = ""
+    phone: str = ""
+    linkedin: str = ""
+    location: str = ""
+
+
+@app.get("/api/profile")
+def get_profile():
+    with get_session() as session:
+        profile = session.get(Profile, 1)
+        if profile is None:
+            profile = Profile(id=1)
+            session.add(profile)
+            session.commit()
+            session.refresh(profile)
+        return profile
+
+
+@app.put("/api/profile")
+def update_profile(body: ProfileIn):
+    with get_session() as session:
+        profile = session.get(Profile, 1) or Profile(id=1)
+        for key, value in body.model_dump().items():
+            setattr(profile, key, value)
+        profile.updated_at = datetime.utcnow()
+        session.add(profile)
+        session.commit()
+        session.refresh(profile)
+        return profile
+
+
+# ---------- AI-assisted applications ----------
+
+def _require_ai_keys():
+    missing = [name for name, val in [("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY), ("OPENAI_API_KEY", OPENAI_API_KEY)] if not val]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"{' and '.join(missing)} not set in .env")
+
+
+class ApplyIn(BaseModel):
+    cv_id: int
+
+
+@app.get("/api/jobs/{job_id:path}/applications")
+def list_applications(job_id: str):
+    with get_session() as session:
+        return session.exec(
+            select(Application).where(Application.job_id == job_id).order_by(Application.created_at.desc())
+        ).all()
+
+
+@app.post("/api/jobs/{job_id:path}/applications")
+def create_application(job_id: str, body: ApplyIn):
+    _require_ai_keys()
+    with get_session() as session:
+        job = session.get(Job, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        cv = session.get(CV, body.cv_id)
+        if cv is None:
+            raise HTTPException(status_code=404, detail="cv not found")
+        profile = session.get(Profile, 1) or Profile(id=1)
+
+        cv_text = extract_cv_text(UPLOAD_DIR / cv.filename)
+        if not cv_text:
+            raise HTTPException(status_code=400, detail="couldn't extract text from that CV (scanned/image-only PDFs aren't supported)")
+
+        try:
+            cover_letter, review_notes = generate_application(job, cv_text, profile)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"AI generation failed: {e}")
+
+        application = Application(job_id=job_id, cv_id=cv.id, cover_letter=cover_letter, review_notes=review_notes)
+        session.add(application)
+        session.commit()
+        session.refresh(application)
+        return application
+
+
+class ReviseIn(BaseModel):
+    feedback: str
+
+
+@app.post("/api/applications/{application_id}/revise")
+def revise_application(application_id: int, body: ReviseIn):
+    _require_ai_keys()
+    with get_session() as session:
+        application = session.get(Application, application_id)
+        if application is None:
+            raise HTTPException(status_code=404, detail="application not found")
+        job = session.get(Job, application.job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="the job for this application no longer exists")
+
+        try:
+            revised = revise_with_feedback(application.cover_letter, body.feedback, job)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"AI revision failed: {e}")
+
+        application.cover_letter = revised
+        application.updated_at = datetime.utcnow()
+        session.add(application)
+        session.commit()
+        session.refresh(application)
+        return application
 
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

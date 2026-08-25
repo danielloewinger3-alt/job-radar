@@ -94,6 +94,7 @@
         <button class="mode-btn active" data-hub-tab="cvs" role="tab" aria-selected="true">CVs</button>
         <button class="mode-btn" data-hub-tab="projects" role="tab" aria-selected="false">Projects</button>
         <button class="mode-btn" data-hub-tab="github" role="tab" aria-selected="false">GitHub</button>
+        <button class="mode-btn" data-hub-tab="profile" role="tab" aria-selected="false">Profile</button>
       </div>
     </div>
     <div class="hub-body">
@@ -121,6 +122,18 @@
       <section id="hub-github" class="hub-tab" hidden>
         <div id="github-status" class="hub-empty"></div>
         <div id="github-grid" class="hub-grid"></div>
+      </section>
+      <section id="hub-profile" class="hub-tab" hidden>
+        <form id="profile-form" class="hub-form hub-form--profile">
+          <input type="text" id="profile-full-name" placeholder="Full name" maxlength="80" />
+          <input type="email" id="profile-email" placeholder="Email" maxlength="120" />
+          <input type="text" id="profile-phone" placeholder="Phone (optional)" maxlength="40" />
+          <input type="text" id="profile-linkedin" placeholder="LinkedIn URL (optional)" maxlength="300" />
+          <input type="text" id="profile-location" placeholder="Location (optional)" maxlength="80" />
+          <button type="submit" class="hud-btn">Save profile</button>
+          <span id="profile-form-status" class="refresh-status"></span>
+        </form>
+        <p class="hub-empty">Used to personalize AI-drafted cover letters in the job Apply tab.</p>
       </section>
     </div>
   </div>
@@ -151,11 +164,26 @@
       <button id="job-modal-apply-btn" class="hud-btn hud-btn--accent">Apply</button>
     </div>
     <div class="job-modal-apply" id="job-modal-apply" hidden>
-      <div class="job-modal-apply-head">AI-assisted application &mdash; draft</div>
-      <label for="job-modal-apply-cv">Use CV</label>
-      <select id="job-modal-apply-cv"></select>
-      <button class="hud-btn" disabled title="Not wired up yet">Generate with AI</button>
-      <p class="job-modal-apply-note">This will draft a tailored application from your CV and this job's full description. Not wired up yet &mdash; coming soon.</p>
+      <div class="job-modal-apply-head">AI-assisted application</div>
+      <div class="job-modal-apply-row">
+        <label for="job-modal-apply-cv">Use CV</label>
+        <select id="job-modal-apply-cv"></select>
+        <button id="job-modal-generate-btn" class="hud-btn hud-btn--accent" type="button">Generate with AI</button>
+        <span id="job-modal-apply-status" class="refresh-status"></span>
+      </div>
+      <p class="job-modal-apply-note" id="job-modal-apply-note">Claude drafts a tailored cover letter, GPT reviews it for how human it sounds, then Claude revises.</p>
+      <div class="job-modal-apply-result" id="job-modal-apply-result" hidden>
+        <label for="job-modal-cover-letter">Cover letter</label>
+        <textarea id="job-modal-cover-letter"></textarea>
+        <details class="job-modal-review-notes">
+          <summary>What the reviewer flagged</summary>
+          <p id="job-modal-review-notes-text"></p>
+        </details>
+        <div class="job-modal-apply-row">
+          <input type="text" id="job-modal-feedback" placeholder="Ask for changes, e.g. &quot;make it less formal&quot;" />
+          <button id="job-modal-revise-btn" class="hud-btn" type="button">Request changes</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

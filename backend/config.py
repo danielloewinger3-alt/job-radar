@@ -23,6 +23,12 @@ USAJOBS_USER_AGENT = os.getenv("USAJOBS_USER_AGENT", "")
 GITHUB_USERNAME = os.getenv("GITHUB_USERNAME", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
+# AI-assisted applications: Claude drafts, GPT reviews for how human it sounds, Claude revises.
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = "claude-opus-5"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
+
 # Primary target cities from the user's passport/eligibility set (US, UK, Israel).
 # lat/lon center the map pin; radius_km is used when a source supports geo search.
 TARGET_CITIES = {
