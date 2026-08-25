@@ -97,12 +97,13 @@
     prospectsBackdrop: document.getElementById("prospects-backdrop"),
     prospectsClose: document.getElementById("prospects-close"),
     prospectsStats: document.getElementById("prospects-stats"),
+    prospectsBackBtn: document.getElementById("prospects-back-btn"),
+    prospectsCityControls: document.getElementById("prospects-city-controls"),
     prospectsCategories: document.getElementById("prospects-categories"),
     prospectsScanBtn: document.getElementById("prospects-scan-btn"),
     prospectsAnalyzeBtn: document.getElementById("prospects-analyze-btn"),
     prospectsStatus: document.getElementById("prospects-status"),
-    prospectsFilter: document.getElementById("prospects-filter"),
-    prospectsGrid: document.getElementById("prospects-grid"),
+    prospectsMapEl: document.getElementById("prospects-map"),
   };
 
   const state = {
@@ -120,6 +121,7 @@
     currentApplication: null,
     prospectAreas: [],
     prospectCategories: [],
+    prospectsCurrentArea: null,
     businesses: [],
   };
 
@@ -1074,16 +1076,21 @@
     net.dragNode = null;
   }
 
-  // ---------- prospects (local business opportunity scan) ----------
+  // ---------- prospects (UK map -> city map -> business pins) ----------
 
-  const CURRENT_AREA = "bristol"; // only area for now; PROSPECT_AREAS on the backend is built to grow
+  let prospectsMap = null;
+  let prospectsAreaMarkers = {};
+  let prospectsBizMarkers = [];
 
   function openProspects() {
     closeBubble();
     closeHub();
     els.prospectsPanel.classList.add("open");
     els.prospectsBackdrop.classList.add("open");
-    loadProspectMeta().then(loadBusinesses);
+    if (!prospectsMap) initProspectsMap();
+    setTimeout(() => prospectsMap.invalidateSize(), 20);
+    if (state.prospectsCurrentArea) showCityView(state.prospectsCurrentArea);
+    else showUkView();
   }
 
   function closeProspects() {
@@ -1094,15 +1101,21 @@
   els.prospectsBtn.addEventListener("click", openProspects);
   els.prospectsClose.addEventListener("click", closeProspects);
   els.prospectsBackdrop.addEventListener("click", closeProspects);
+  els.prospectsBackBtn.addEventListener("click", showUkView);
+
+  function initProspectsMap() {
+    prospectsMap = L.map(els.prospectsMapEl, { zoomControl: false, attributionControl: false }).setView([54.5, -3.5], 6);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(prospectsMap);
+  }
 
   async function loadProspectMeta() {
-    if (state.prospectCategories.length > 0) return; // static config, fetch once
     const res = await fetch("/api/prospects/areas");
     const data = await res.json();
     state.prospectAreas = data.areas;
-    state.prospectCategories = data.categories;
-    renderCategoryPicker();
-    renderProspectsFilter();
+    if (state.prospectCategories.length === 0) {
+      state.prospectCategories = data.categories;
+      renderCategoryPicker();
+    }
   }
 
   function renderCategoryPicker() {
@@ -1115,23 +1128,70 @@
     ).join("");
   }
 
-  function renderProspectsFilter() {
-    els.prospectsFilter.innerHTML = '<option value="">All categories</option>' +
-      state.prospectCategories.map(cat => '<option value="' + cat.key + '">' + escapeHtml(cat.label) + '</option>').join("");
-  }
+  els.prospectsCategories.addEventListener("change", () => {
+    if (state.prospectsCurrentArea && prospectsMap) renderBizMarkers();
+  });
 
   function categoryLabel(key) {
     const cat = state.prospectCategories.find(c => c.key === key);
     return cat ? cat.label : key;
   }
 
+  async function showUkView() {
+    state.prospectsCurrentArea = null;
+    els.prospectsBackBtn.hidden = true;
+    els.prospectsCityControls.hidden = true;
+    clearBizMarkers();
+    await loadProspectMeta();
+    renderAreaMarkers();
+    prospectsMap.setView([54.5, -3.5], 6);
+    const n = state.prospectAreas.length;
+    els.prospectsStats.textContent = "United Kingdom · " + n + " area" + (n === 1 ? "" : "s") + " tracked";
+  }
+
+  function renderAreaMarkers() {
+    Object.values(prospectsAreaMarkers).forEach(m => prospectsMap.removeLayer(m));
+    prospectsAreaMarkers = {};
+    state.prospectAreas.forEach(area => {
+      const hasSignal = area.unanalyzed_businesses > 0;
+      const size = Math.min(36, 16 + area.total_businesses * 0.12);
+      const icon = L.divIcon({
+        className: "",
+        html:
+          '<div class="area-pin-icon' + (hasSignal ? " has-signal" : "") + '" style="width:' + size + 'px;height:' + size + 'px;">' +
+            '<span class="area-pin-pulse"></span>' +
+            '<span class="area-pin-dot"></span>' +
+            '<span class="area-pin-label">' + escapeHtml(area.label) + '</span>' +
+          '</div>',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+      const marker = L.marker([area.lat, area.lon], { icon }).addTo(prospectsMap);
+      marker.bindTooltip(area.label + " — " + area.total_businesses + " business" + (area.total_businesses === 1 ? "" : "es"));
+      marker.on("click", () => showCityView(area.key));
+      prospectsAreaMarkers[area.key] = marker;
+    });
+  }
+
+  async function showCityView(areaKey) {
+    state.prospectsCurrentArea = areaKey;
+    if (state.prospectAreas.length === 0) await loadProspectMeta();
+    const area = state.prospectAreas.find(a => a.key === areaKey);
+    els.prospectsBackBtn.hidden = false;
+    els.prospectsCityControls.hidden = false;
+    Object.values(prospectsAreaMarkers).forEach(m => prospectsMap.removeLayer(m));
+    if (area) prospectsMap.setView([area.lat, area.lon], 12);
+    await loadBusinesses();
+  }
+
   els.prospectsScanBtn.addEventListener("click", async () => {
+    const areaKey = state.prospectsCurrentArea;
     const checked = Array.from(els.prospectsCategories.querySelectorAll("input:checked")).map(i => i.value);
-    if (checked.length === 0) return;
+    if (!areaKey || checked.length === 0) return;
     els.prospectsScanBtn.disabled = true;
     els.prospectsStatus.textContent = "Scanning " + checked.length + " categor" + (checked.length === 1 ? "y" : "ies") + " via OpenStreetMap…";
     try {
-      const res = await fetch("/api/prospects/" + CURRENT_AREA + "/scan", {
+      const res = await fetch("/api/prospects/" + areaKey + "/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categories: checked }),
@@ -1148,10 +1208,12 @@
   });
 
   els.prospectsAnalyzeBtn.addEventListener("click", async () => {
+    const areaKey = state.prospectsCurrentArea;
+    if (!areaKey) return;
     els.prospectsAnalyzeBtn.disabled = true;
     els.prospectsStatus.textContent = "Analyzing… (fetches each website, then Claude scores it — can take a minute)";
     try {
-      const res = await fetch("/api/prospects/" + CURRENT_AREA + "/analyze", {
+      const res = await fetch("/api/prospects/" + areaKey + "/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 10 }),
@@ -1167,62 +1229,77 @@
     setTimeout(() => (els.prospectsStatus.textContent = ""), 5000);
   });
 
-  els.prospectsFilter.addEventListener("change", loadBusinesses);
-
   async function loadBusinesses() {
-    const category = els.prospectsFilter.value;
-    const url = "/api/prospects/" + CURRENT_AREA + "/businesses" + (category ? "?category=" + encodeURIComponent(category) : "");
-    const res = await fetch(url);
+    const areaKey = state.prospectsCurrentArea;
+    if (!areaKey) return;
+    const res = await fetch("/api/prospects/" + areaKey + "/businesses");
     state.businesses = await res.json();
-    renderBusinessGrid();
+    renderBizMarkers();
     updateProspectsStats();
   }
 
-  function updateProspectsStats() {
-    const analyzed = state.businesses.filter(b => b.analyzed_at).length;
-    els.prospectsStats.textContent = "Bristol, UK · " + state.businesses.length + " businesses · " + analyzed + " analyzed";
+  function clearBizMarkers() {
+    prospectsBizMarkers.forEach(m => prospectsMap.removeLayer(m));
+    prospectsBizMarkers = [];
   }
 
-  function renderBusinessGrid() {
-    if (state.businesses.length === 0) {
-      els.prospectsGrid.innerHTML = '<div class="hub-empty">No businesses yet — pick categories above and scan.</div>';
-      return;
-    }
-    els.prospectsGrid.innerHTML = "";
-    state.businesses.forEach(business => {
-      const card = document.createElement("div");
-      card.className = "hub-card";
-      const links = [
-        business.phone ? escapeHtml(business.phone) : "",
-        business.website ? '<a href="' + escapeHtml(business.website.startsWith("http") ? business.website : "https://" + business.website) + '" target="_blank" rel="noopener">Website</a>' : "no website found",
-      ].filter(Boolean).join(" &middot; ");
+  function checkedCategories() {
+    return new Set(Array.from(els.prospectsCategories.querySelectorAll("input:checked")).map(i => i.value));
+  }
 
-      let chStatus = "";
-      if (business.companies_house_status) {
-        const overdue = business.companies_house_status.includes("overdue");
-        chStatus = '<div class="ch-status' + (overdue ? " overdue" : "") + '">Companies House: ' + escapeHtml(business.companies_house_status) + '</div>';
-      }
-
-      let opportunitySection;
-      if (business.analyzed_at) {
-        const tags = (business.opportunity_tags || "").split(",").map(t => t.trim()).filter(Boolean);
-        opportunitySection =
-          '<div class="opportunity-summary">' + escapeHtml(business.opportunity_summary || "No summary.") + '</div>' +
-          (tags.length ? '<div class="opportunity-tags">' + tags.map(t => '<span class="opportunity-tag">' + escapeHtml(t.replace(/_/g, " ")) + '</span>').join("") + '</div>' : "");
-      } else {
-        opportunitySection = '<div class="opportunity-summary">Not analyzed yet — click "Analyze next 10" above.</div>';
-      }
-
-      card.innerHTML =
-        '<div class="business-card-head">' +
-          '<div class="hub-card-title">' + escapeHtml(business.name) + '</div>' +
-          '<span class="hub-card-tag">' + escapeHtml(categoryLabel(business.category)) + '</span>' +
-        '</div>' +
-        '<div class="business-card-meta">' + escapeHtml(business.address || "") + '<br>' + links + '</div>' +
-        chStatus +
-        opportunitySection;
-      els.prospectsGrid.appendChild(card);
+  function renderBizMarkers() {
+    clearBizMarkers();
+    const checked = checkedCategories();
+    const visible = checked.size === 0 ? state.businesses : state.businesses.filter(b => checked.has(b.category));
+    visible.forEach(business => {
+      const cls = business.analyzed_at ? "analyzed" : (!business.website ? "no-website" : "");
+      const icon = L.divIcon({
+        className: "",
+        html: '<div class="biz-pin ' + cls + '" style="width:12px;height:12px;"></div>',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+      const marker = L.marker([business.lat, business.lon], { icon }).addTo(prospectsMap);
+      marker.bindPopup(renderBusinessPopup(business), { maxWidth: 300 });
+      prospectsBizMarkers.push(marker);
     });
+  }
+
+  function renderBusinessPopup(business) {
+    const links = [
+      business.phone ? escapeHtml(business.phone) : "",
+      business.website ? '<a href="' + escapeHtml(business.website.startsWith("http") ? business.website : "https://" + business.website) + '" target="_blank" rel="noopener">Website</a>' : "no website found",
+    ].filter(Boolean).join(" &middot; ");
+
+    let chStatus = "";
+    if (business.companies_house_status) {
+      const overdue = business.companies_house_status.includes("overdue");
+      chStatus = '<div class="ch-status' + (overdue ? " overdue" : "") + '">Companies House: ' + escapeHtml(business.companies_house_status) + '</div>';
+    }
+
+    let opportunitySection;
+    if (business.analyzed_at) {
+      const tags = (business.opportunity_tags || "").split(",").map(t => t.trim()).filter(Boolean);
+      opportunitySection =
+        '<div class="opportunity-summary">' + escapeHtml(business.opportunity_summary || "No summary.") + '</div>' +
+        (tags.length ? '<div class="opportunity-tags">' + tags.map(t => '<span class="opportunity-tag">' + escapeHtml(t.replace(/_/g, " ")) + '</span>').join("") + '</div>' : "");
+    } else {
+      opportunitySection = '<div class="opportunity-summary">Not analyzed yet — click "Analyze next 10" above.</div>';
+    }
+
+    return (
+      '<div class="biz-popup-title">' + escapeHtml(business.name) + '</div>' +
+      '<div class="biz-popup-category">' + escapeHtml(categoryLabel(business.category)) + '</div>' +
+      '<div class="biz-popup-meta">' + escapeHtml(business.address || "") + '<br>' + links + '</div>' +
+      chStatus +
+      opportunitySection
+    );
+  }
+
+  function updateProspectsStats() {
+    const area = state.prospectAreas.find(a => a.key === state.prospectsCurrentArea);
+    const analyzed = state.businesses.filter(b => b.analyzed_at).length;
+    els.prospectsStats.textContent = (area ? area.label : "") + ", UK · " + state.businesses.length + " businesses · " + analyzed + " analyzed";
   }
 
   // ---------- clock ----------

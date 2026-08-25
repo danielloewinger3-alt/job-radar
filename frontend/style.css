@@ -832,16 +832,18 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* ---------- prospects ---------- */
 
-.prospects-hint { font-size: 0.62rem; color: var(--text-faint); letter-spacing: 0.04em; }
-
-.prospects-controls { border-bottom: 1px solid var(--grid-line); padding-bottom: 0.9rem; margin-bottom: 0.9rem; }
+.prospects-city-controls[hidden] { display: none; }
+.prospects-city-controls {
+  padding: 0 1.6rem 0.8rem;
+  border-bottom: 1px solid var(--grid-line);
+}
 
 .prospects-categories {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 0.7rem;
-  max-height: 130px;
+  max-height: 110px;
   overflow-y: auto;
   padding: 0.15rem;
 }
@@ -859,29 +861,99 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   border-radius: 2px;
 }
 .category-chip input { accent-color: var(--accent); }
-.category-chip.has-checked-look { color: var(--text); }
 .coverage-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .coverage-dot.good { background: var(--accent); }
 .coverage-dot.fair { background: var(--src-remoteok); }
 .coverage-dot.poor { background: var(--text-faint); }
 
-.prospects-filter-label { font-size: 0.66rem; color: var(--text-dim); letter-spacing: 0.06em; }
-#prospects-filter {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--panel-edge);
-  color: var(--text);
-  padding: 0.4rem 0.6rem;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  border-radius: 2px;
+.prospects-map-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--grid-line);
+  overflow: hidden;
+}
+#prospects-map { position: absolute; inset: 0; z-index: 0; background: var(--panel); }
+#prospects-map .leaflet-control-container { display: none; }
+
+.prospects-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.02) 0px, transparent 1px, transparent 3px);
+  mix-blend-mode: overlay;
 }
 
-.prospects-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.area-pin-icon { position: relative; cursor: pointer; }
+.area-pin-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 12px rgba(47,231,196,0.4);
+}
+.area-pin-icon.has-signal .area-pin-dot {
+  background: var(--alert-dim);
+  border-color: var(--alert);
+  box-shadow: 0 0 14px rgba(255,77,77,0.45);
+}
+.area-pin-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--alert);
+  opacity: 0;
+}
+.area-pin-icon.has-signal .area-pin-pulse { animation: pulse 1.8s ease-out infinite; }
+.area-pin-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+  text-shadow: 0 0 6px rgba(7,11,12,0.9);
+}
 
-.business-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
-.business-card-meta { font-size: 0.66rem; color: var(--text-dim); line-height: 1.5; }
-.business-card-meta a { color: var(--accent); text-decoration: none; }
-.business-card-meta a:hover { text-decoration: underline; }
+.biz-pin { border-radius: 50%; border: 1.5px solid var(--text-faint); background: rgba(255,255,255,0.08); }
+.biz-pin.no-website { border-color: var(--src-remoteok); background: rgba(255,180,84,0.25); }
+.biz-pin.analyzed { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 8px rgba(47,231,196,0.6); }
+
+.leaflet-popup-content-wrapper {
+  background: var(--panel-glass);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  border: 1px solid var(--panel-edge);
+  border-radius: 2px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.leaflet-popup-tip { background: var(--panel); }
+.leaflet-popup-content { margin: 0.7rem 0.8rem; width: 260px !important; }
+.leaflet-popup-close-button { color: var(--text-dim) !important; }
+
+.biz-popup-title {
+  font-family: 'Big Shoulders', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.biz-popup-category {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0.15rem 0 0.4rem;
+}
+.biz-popup-meta { font-size: 0.66rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 0.4rem; }
+.biz-popup-meta a { color: var(--accent); text-decoration: none; }
+.biz-popup-meta a:hover { text-decoration: underline; }
 
 .opportunity-summary {
   font-size: 0.7rem;
@@ -892,7 +964,7 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
   padding-top: 0.5rem;
   margin-top: 0.2rem;
 }
-.opportunity-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.opportunity-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
 .opportunity-tag {
   font-size: 0.56rem;
   letter-spacing: 0.06em;

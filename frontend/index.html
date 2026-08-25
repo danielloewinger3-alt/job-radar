@@ -28,7 +28,7 @@
       <input id="search" type="text" placeholder="Filter open case file&hellip;" />
       <label class="hud-toggle"><input id="toggle-eu" type="checkbox" checked /> EU net</label>
       <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
-      <button id="prospects-btn" class="hud-btn hud-btn--ghost">Prospects</button>
+      <button id="prospects-btn" class="hud-btn hud-btn--ghost">UK Prospects</button>
       <button id="refresh-btn" class="hud-btn">Refresh</button>
       <span id="refresh-status" class="refresh-status"></span>
     </div>
@@ -193,30 +193,25 @@
     <div class="panel-head">
       <div>
         <div class="panel-eyebrow">Local opportunity scan</div>
-        <h2 id="prospects-title">Prospects</h2>
+        <h2 id="prospects-title">UK Prospects</h2>
       </div>
-      <button class="icon-btn" id="prospects-close" aria-label="Close prospects">&#10005;</button>
+      <button class="icon-btn" id="prospects-close" aria-label="Close UK prospects">&#10005;</button>
     </div>
     <div class="panel-meta">
-      <span id="prospects-stats">Bristol, UK</span>
-      <span class="prospects-hint">More UK areas coming later</span>
+      <span id="prospects-stats">United Kingdom</span>
+      <button id="prospects-back-btn" class="hud-btn hud-btn--ghost" type="button" hidden>&#8592; All UK</button>
     </div>
-    <div class="hub-body">
-      <div class="prospects-controls">
-        <div class="prospects-categories" id="prospects-categories"></div>
-        <div class="job-modal-apply-row">
-          <button id="prospects-scan-btn" class="hud-btn hud-btn--accent" type="button">Scan selected categories</button>
-          <button id="prospects-analyze-btn" class="hud-btn" type="button">Analyze next 10</button>
-          <span id="prospects-status" class="refresh-status"></span>
-        </div>
-        <div class="job-modal-apply-row">
-          <label for="prospects-filter" class="prospects-filter-label">Show</label>
-          <select id="prospects-filter">
-            <option value="">All categories</option>
-          </select>
-        </div>
+    <div class="prospects-city-controls" id="prospects-city-controls" hidden>
+      <div class="prospects-categories" id="prospects-categories"></div>
+      <div class="job-modal-apply-row">
+        <button id="prospects-scan-btn" class="hud-btn hud-btn--accent" type="button">Scan selected categories</button>
+        <button id="prospects-analyze-btn" class="hud-btn" type="button">Analyze next 10</button>
+        <span id="prospects-status" class="refresh-status"></span>
       </div>
-      <div id="prospects-grid" class="hub-grid prospects-grid"></div>
+    </div>
+    <div class="prospects-map-body">
+      <div id="prospects-map"></div>
+      <div class="prospects-map-overlay" aria-hidden="true"></div>
     </div>
   </div>
 </div>

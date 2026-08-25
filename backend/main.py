@@ -369,8 +369,16 @@ def revise_application(application_id: int, body: ReviseIn):
 
 @app.get("/api/prospects/areas")
 def get_prospect_areas():
+    with get_session() as session:
+        areas = []
+        for key, area in PROSPECT_AREAS.items():
+            total = session.exec(select(func.count()).select_from(Business).where(Business.area_key == key)).one()
+            unanalyzed = session.exec(
+                select(func.count()).select_from(Business).where(Business.area_key == key, Business.analyzed_at == None)  # noqa: E711
+            ).one()
+            areas.append({"key": key, **area, "total_businesses": total, "unanalyzed_businesses": unanalyzed})
     return {
-        "areas": [{"key": k, **v} for k, v in PROSPECT_AREAS.items()],
+        "areas": areas,
         "categories": [{"key": k, **v} for k, v in BUSINESS_CATEGORIES.items()],
     }
 
