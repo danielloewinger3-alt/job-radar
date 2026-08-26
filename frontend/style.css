@@ -38,6 +38,24 @@ button { font-family: inherit; }
   outline-offset: 2px;
 }
 
+::selection { background: var(--accent-dim); color: var(--text); }
+
+/* Thin HUD-styled scrollbars everywhere, instead of default OS chrome breaking
+   the aesthetic inside every dark panel. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--panel-edge) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--panel-edge);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); background-clip: padding-box; }
+
 #stage {
   position: relative;
   height: 100vh;
@@ -162,8 +180,10 @@ button { font-family: inherit; }
   padding: 0.4rem 0.7rem;
   cursor: pointer;
   border-radius: 2px;
+  transition: background 0.12s ease, transform 0.08s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .hud-btn:hover { background: rgba(47,231,196,0.18); }
+.hud-btn:active:not(:disabled) { transform: scale(0.96); }
 .hud-btn:disabled { opacity: 0.5; cursor: default; }
 
 .refresh-status {
@@ -360,8 +380,10 @@ button { font-family: inherit; }
   cursor: pointer;
   line-height: 1;
   font-size: 0.75rem;
+  transition: color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.icon-btn:active { transform: scale(0.9); }
 
 .panel-meta { display: flex; align-items: center; justify-content: space-between; padding: 0 1.6rem 0.8rem; gap: 0.75rem; }
 #panel-count { font-size: 0.76rem; letter-spacing: 0.08em; color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -610,6 +632,26 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .hub-card-actions button:hover { color: var(--alert); border-color: var(--alert); }
 
 .hub-empty { color: var(--text-faint); font-size: 0.74rem; padding: 1rem 0; }
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-faint);
+  font-size: 0.74rem;
+  padding: 1rem 0;
+}
+.loading-ring {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--grid-line);
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  flex: none;
+  animation: hub-ring-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .loading-ring { animation: none; } }
 
 /* ---------- job detail modal ---------- */
 

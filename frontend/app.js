@@ -155,6 +155,28 @@
 
   function truncate(str, n) { return str.length > n ? str.slice(0, n - 1) + "…" : str; }
 
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animateNumberTokens = new WeakMap();
+
+  function animateNumber(el, newValue) {
+    const to = Number(newValue) || 0;
+    if (prefersReducedMotion) { el.textContent = to; return; }
+    const from = parseInt(el.textContent, 10) || 0;
+    if (from === to) { el.textContent = to; return; }
+    const token = (animateNumberTokens.get(el) || 0) + 1;
+    animateNumberTokens.set(el, token);
+    const duration = 450;
+    const start = performance.now();
+    function step(now) {
+      if (animateNumberTokens.get(el) !== token) return; // a newer update superseded this one
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(from + (to - from) * eased);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
   function groupCompanies(jobs) {
     const order = [];
     const map = new Map();
@@ -239,8 +261,8 @@
   function renderStats() {
     const citiesTotal = state.cities.reduce((s, c) => s + c.total_jobs, 0);
     const citiesUnseen = state.cities.reduce((s, c) => s + c.unseen_jobs, 0);
-    els.statTotal.textContent = citiesTotal + (state.remoteTotal || 0);
-    els.statNew.textContent = citiesUnseen + (state.remoteUnseen || 0);
+    animateNumber(els.statTotal, citiesTotal + (state.remoteTotal || 0));
+    animateNumber(els.statNew, citiesUnseen + (state.remoteUnseen || 0));
   }
 
   // ---------- bubble open/close ----------
@@ -1452,7 +1474,7 @@
 
   async function loadNews(category) {
     const requestId = ++newsRequestId;
-    els.newsList.innerHTML = '<div class="hub-empty">Loading&hellip;</div>';
+    els.newsList.innerHTML = '<div class="loading-state"><span class="loading-ring"></span>Loading&hellip;</div>';
     const url = "/api/news" + (category ? "?category=" + encodeURIComponent(category) : "");
     const res = await fetch(url);
     const data = await res.json();
