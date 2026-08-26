@@ -1390,7 +1390,10 @@
 
   // ---------- news ----------
 
-  const NEWS_CAT_COLOR = { world: "var(--src-reed)", tech: "var(--accent)", business: "var(--src-remoteok)" };
+  const NEWS_CAT_COLOR = {
+    world: "var(--src-reed)", tech: "var(--accent)", business: "var(--src-remoteok)",
+    israel: "var(--src-lever)", uk: "var(--src-usajobs)", usa: "var(--src-adzuna)", europe: "#5ad1e6",
+  };
 
   function openNews() {
     closeBubble();
@@ -1440,11 +1443,15 @@
     loadNews(state.newsCurrentCategory);
   });
 
+  let newsRequestId = 0;
+
   async function loadNews(category) {
+    const requestId = ++newsRequestId;
     els.newsList.innerHTML = '<div class="hub-empty">Loading&hellip;</div>';
     const url = "/api/news" + (category ? "?category=" + encodeURIComponent(category) : "");
     const res = await fetch(url);
     const data = await res.json();
+    if (requestId !== newsRequestId) return; // a newer tab click superseded this fetch
     renderNewsList(data.articles || []);
   }
 

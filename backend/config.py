@@ -186,4 +186,37 @@ NEWS_CATEGORIES = {
             {"name": "CNBC", "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"},
         ],
     },
+    "israel": {
+        "label": "Israel",
+        # Times of Israel blocks non-browser requests (403 even with a full browser
+        # User-Agent); Haaretz's old RSS path no longer resolves to a feed. Both dropped.
+        "feeds": [
+            {"name": "The Jerusalem Post", "url": "https://www.jpost.com/rss/rssfeedsfrontpage.aspx"},
+            {"name": "Ynet News", "url": "https://www.ynetnews.com/Integration/StoryRss3082.xml"},
+        ],
+    },
+    "uk": {
+        "label": "UK",
+        "feeds": [
+            {"name": "BBC UK", "url": "http://feeds.bbci.co.uk/news/uk/rss.xml"},
+            {"name": "Sky News UK", "url": "https://feeds.skynews.com/feeds/rss/uk.xml"},
+            {"name": "The Guardian UK", "url": "https://www.theguardian.com/uk-news/rss"},
+        ],
+    },
+    "usa": {
+        "label": "USA",
+        "feeds": [
+            {"name": "BBC US & Canada", "url": "http://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"},
+            {"name": "NPR", "url": "https://feeds.npr.org/1001/rss.xml"},
+            {"name": "The Guardian US", "url": "https://www.theguardian.com/us-news/rss"},
+        ],
+    },
+    "europe": {
+        "label": "Europe",
+        "feeds": [
+            {"name": "BBC Europe", "url": "http://feeds.bbci.co.uk/news/world/europe/rss.xml"},
+            {"name": "Euronews", "url": "https://www.euronews.com/rss?level=theme&name=news"},
+            {"name": "Politico Europe", "url": "https://www.politico.eu/feed/"},
+        ],
+    },
 }
