@@ -1054,3 +1054,70 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
 .news-time { font-size: 0.6rem; color: var(--text-faint); margin-left: auto; font-variant-numeric: tabular-nums; }
 .news-title { font-size: 0.8rem; color: var(--text); line-height: 1.4; margin-bottom: 0.25rem; }
 .news-summary { font-size: 0.68rem; color: var(--text-dim); line-height: 1.5; }
+
+/* ---------- alfred (voice) ---------- */
+
+.alfred-mic-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 0.3rem;
+  box-shadow: 0 0 6px rgba(47,231,196,0.5);
+  vertical-align: middle;
+}
+#alfred-btn.listening .alfred-mic-dot {
+  background: var(--alert);
+  box-shadow: 0 0 8px rgba(255,77,77,0.7);
+  animation: pulse 1.2s ease-out infinite;
+}
+#alfred-btn.speaking .alfred-mic-dot { animation: alfred-breathe 0.8s ease-in-out infinite; }
+#alfred-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@keyframes alfred-breathe {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
+}
+
+.alfred-readout {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: min(560px, 90vw);
+  background: var(--panel-glass);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-edge);
+  padding: 0.7rem 1.1rem;
+  clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(47,231,196,0.1);
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.alfred-readout.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.alfred-readout-ring {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--grid-line);
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  flex: none;
+  animation: hub-ring-spin 1.4s linear infinite;
+}
+.alfred-readout-body { min-width: 0; }
+.alfred-readout-label { font-size: 0.6rem; letter-spacing: 0.16em; color: var(--accent); margin-bottom: 0.15rem; }
+.alfred-readout-text { font-size: 0.78rem; color: var(--text); line-height: 1.4; }
+
+@media (prefers-reduced-motion: reduce) {
+  #alfred-btn.listening .alfred-mic-dot,
+  #alfred-btn.speaking .alfred-mic-dot { animation: none; }
+  .alfred-readout-ring { animation: none; }
+}

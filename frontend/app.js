@@ -113,6 +113,11 @@
     newsTabs: document.getElementById("news-tabs"),
     newsDialIndicator: document.getElementById("news-dial-indicator"),
     newsList: document.getElementById("news-list"),
+
+    alfredBtn: document.getElementById("alfred-btn"),
+    alfredReadout: document.getElementById("alfred-readout"),
+    alfredReadoutLabel: document.getElementById("alfred-readout-label"),
+    alfredReadoutText: document.getElementById("alfred-readout-text"),
   };
 
   const state = {
@@ -1486,6 +1491,153 @@
         '</a>'
       );
     }).join("");
+  }
+
+  // ---------- alfred (voice input/output) ----------
+
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const synth = window.speechSynthesis;
+  let alfredVoice = null;
+  let alfredRecognizer = null;
+  let alfredListening = false;
+  let alfredHideTimer = null;
+
+  function pickAlfredVoice() {
+    if (!synth) return null;
+    const voices = synth.getVoices();
+    if (voices.length === 0) return null;
+    // Prefer a measured British male voice for the butler persona; fall back
+    // gracefully through progressively looser matches, then any English voice.
+    const byName = name => voices.find(v => v.name.toLowerCase().includes(name));
+    return (
+      byName("daniel") ||                                            // macOS/Safari/Chrome UK male
+      voices.find(v => /male/i.test(v.name) && /gb|uk|british/i.test(v.lang + " " + v.name)) ||
+      voices.find(v => /gb|uk/i.test(v.lang)) ||
+      voices.find(v => v.lang.startsWith("en")) ||
+      voices[0]
+    );
+  }
+
+  if (synth) {
+    alfredVoice = pickAlfredVoice();
+    synth.addEventListener("voiceschanged", () => { alfredVoice = pickAlfredVoice(); });
+  }
+
+  function showAlfredReadout(label, text) {
+    clearTimeout(alfredHideTimer);
+    els.alfredReadoutLabel.textContent = label;
+    els.alfredReadoutText.textContent = text;
+    els.alfredReadout.hidden = false;
+    requestAnimationFrame(() => els.alfredReadout.classList.add("show"));
+  }
+
+  function hideAlfredReadoutSoon(delay) {
+    clearTimeout(alfredHideTimer);
+    alfredHideTimer = setTimeout(() => {
+      els.alfredReadout.classList.remove("show");
+      setTimeout(() => { els.alfredReadout.hidden = true; }, 220);
+    }, delay);
+  }
+
+  function alfredSpeak(text) {
+    showAlfredReadout("ALFRED", text);
+    if (!synth) { hideAlfredReadoutSoon(3200); return; }
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (alfredVoice) utterance.voice = alfredVoice;
+    utterance.rate = 0.96;
+    utterance.pitch = 0.85;
+    els.alfredBtn.classList.add("speaking");
+    utterance.onend = utterance.onerror = () => {
+      els.alfredBtn.classList.remove("speaking");
+      hideAlfredReadoutSoon(1400);
+    };
+    synth.speak(utterance);
+  }
+
+  function currentOpenStat() {
+    const total = els.statTotal.textContent;
+    const unreviewed = els.statNew.textContent;
+    return "You have " + total + " signals tracked, " + unreviewed + " still unreviewed, sir.";
+  }
+
+  function closeWhicheverIsOpen() {
+    if (els.jobModal.classList.contains("open")) { closeJobModal(); return true; }
+    if (els.hubPanel.classList.contains("open")) { closeHub(); return true; }
+    if (els.prospectsPanel.classList.contains("open")) { closeProspects(); return true; }
+    if (els.newsPanel.classList.contains("open")) { closeNews(); return true; }
+    if (state.openBubble) { closeBubble(); return true; }
+    return false;
+  }
+
+  function dispatchAlfredCommand(heard) {
+    const text = heard.trim().toLowerCase();
+    let match;
+
+    if (/^open (the )?dossier/.test(text)) {
+      openHub();
+      alfredSpeak("Opening the Dossier, sir.");
+    } else if (/^open (the )?(uk )?prospects/.test(text)) {
+      openProspects();
+      alfredSpeak("Pulling up UK Prospects.");
+    } else if (/^open (the )?news/.test(text)) {
+      openNews();
+      alfredSpeak("Here is the news, sir.");
+    } else if (/^(close|dismiss|hide)/.test(text)) {
+      const closed = closeWhicheverIsOpen();
+      alfredSpeak(closed ? "Very good." : "There is nothing open at present, sir.");
+    } else if (/^refresh/.test(text)) {
+      refresh();
+      alfredSpeak("Refreshing the board now.");
+    } else if ((match = text.match(/^search for (.+)/))) {
+      els.search.value = match[1];
+      els.search.dispatchEvent(new Event("input"));
+      alfredSpeak('Filtering for "' + match[1] + '".');
+    } else if (/status|briefing|what.?s (going on|happening)|how are things/.test(text)) {
+      alfredSpeak(currentOpenStat());
+    } else {
+      alfredSpeak("I'm afraid I didn't quite catch that, sir.");
+    }
+  }
+
+  function initAlfredRecognizer() {
+    const recognizer = new SpeechRecognitionCtor();
+    recognizer.lang = "en-GB";
+    recognizer.continuous = false;
+    recognizer.interimResults = true;
+
+    recognizer.onresult = e => {
+      let transcript = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      showAlfredReadout("LISTENING", transcript || "…");
+      if (e.results[e.results.length - 1].isFinal) dispatchAlfredCommand(transcript);
+    };
+    recognizer.onerror = () => { alfredListening = false; els.alfredBtn.classList.remove("listening"); };
+    recognizer.onend = () => { alfredListening = false; els.alfredBtn.classList.remove("listening"); };
+    return recognizer;
+  }
+
+  if (!SpeechRecognitionCtor) {
+    els.alfredBtn.disabled = true;
+    els.alfredBtn.title = "Voice input isn't supported in this browser (try Chrome or Edge)";
+  } else {
+    els.alfredBtn.addEventListener("click", () => {
+      if (alfredListening) {
+        alfredRecognizer.stop();
+        return;
+      }
+      if (synth) synth.cancel();
+      if (!alfredRecognizer) alfredRecognizer = initAlfredRecognizer();
+      alfredListening = true;
+      els.alfredBtn.classList.add("listening");
+      showAlfredReadout("LISTENING", "…");
+      try {
+        alfredRecognizer.start();
+      } catch (e) {
+        alfredListening = false;
+        els.alfredBtn.classList.remove("listening");
+      }
+    });
   }
 
   // ---------- clock ----------

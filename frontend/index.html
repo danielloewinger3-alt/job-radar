@@ -30,6 +30,9 @@
       <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
       <button id="prospects-btn" class="hud-btn hud-btn--ghost">UK Prospects</button>
       <button id="news-btn" class="hud-btn hud-btn--ghost">News</button>
+      <button id="alfred-btn" class="hud-btn hud-btn--ghost" type="button" aria-label="Talk to Alfred" title="Talk to Alfred">
+        <span class="alfred-mic-dot" aria-hidden="true"></span> Alfred
+      </button>
       <button id="refresh-btn" class="hud-btn">Refresh</button>
       <span id="refresh-status" class="refresh-status"></span>
     </div>
@@ -46,6 +49,14 @@
     <span class="pin-count" id="remote-count" hidden></span>
   </button>
   <span class="pin-corner-label">Remote</span>
+
+  <div class="alfred-readout" id="alfred-readout" hidden>
+    <div class="alfred-readout-ring" aria-hidden="true"></div>
+    <div class="alfred-readout-body">
+      <div class="alfred-readout-label" id="alfred-readout-label">ALFRED</div>
+      <div class="alfred-readout-text" id="alfred-readout-text"></div>
+    </div>
+  </div>
 
   <div class="overlay-backdrop" id="panel-backdrop"></div>
   <div class="overlay-card" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-city">
