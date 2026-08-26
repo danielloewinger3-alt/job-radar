@@ -155,3 +155,35 @@ BUSINESS_CATEGORIES = {
     "hotel":          {"label": "Independent Hotels", "sector": "hospitality", "osm_coverage": "good", "tags": [("tourism", "hotel")]},
     "restaurant":     {"label": "Restaurants & Hospitality", "sector": "hospitality", "osm_coverage": "good", "tags": [("amenity", "restaurant")]},
 }
+
+# ---------- News: daily headlines by category ----------
+# Free RSS feeds, no key needed. Each URL was fetched live and confirmed to return
+# real RSS/Atom XML (some redirect — httpx follows that automatically).
+NEWS_CATEGORIES = {
+    "world": {
+        "label": "World & Geopolitics",
+        "feeds": [
+            {"name": "BBC World", "url": "http://feeds.bbci.co.uk/news/world/rss.xml"},
+            {"name": "The Guardian World", "url": "https://www.theguardian.com/world/rss"},
+            {"name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml"},
+        ],
+    },
+    "tech": {
+        "label": "Tech",
+        "feeds": [
+            {"name": "TechCrunch", "url": "https://techcrunch.com/feed/"},
+            {"name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index"},
+            {"name": "Hacker News", "url": "https://hnrss.org/frontpage"},
+            {"name": "BBC Technology", "url": "http://feeds.bbci.co.uk/news/technology/rss.xml"},
+        ],
+    },
+    "business": {
+        "label": "Finance & Business",
+        "feeds": [
+            {"name": "Financial Times", "url": "https://www.ft.com/rss/home"},
+            {"name": "BBC Business", "url": "http://feeds.bbci.co.uk/news/business/rss.xml"},
+            {"name": "The Guardian Business", "url": "https://www.theguardian.com/uk/business/rss"},
+            {"name": "CNBC", "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"},
+        ],
+    },
+}

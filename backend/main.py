@@ -19,6 +19,7 @@ from backend.config import (
     GITHUB_TOKEN,
     GITHUB_USERNAME,
     MAX_CV_BYTES,
+    NEWS_CATEGORIES,
     OPENAI_API_KEY,
     PROSPECT_AREAS,
     SECTORS,
@@ -27,6 +28,7 @@ from backend.config import (
 )
 from backend.cv_text import extract_text as extract_cv_text
 from backend.db import get_session, init_db
+from backend import news as news_module
 from backend.models import CV, Application, Business, Job, Profile, Project
 from backend.poller import poll_all_sources
 from backend.prospects import scan as prospect_scan
@@ -423,6 +425,22 @@ def analyze_prospects(area_key: str, body: AnalyzeIn):
         raise HTTPException(status_code=400, detail="ANTHROPIC_API_KEY not set in .env")
     analyzed = prospect_scan.analyze_pending(area_key, limit=min(body.limit, 25))
     return {"analyzed": analyzed}
+
+
+# ---------- news ----------
+
+@app.get("/api/news/categories")
+def get_news_categories():
+    return [{"key": k, "label": v["label"]} for k, v in NEWS_CATEGORIES.items()]
+
+
+@app.get("/api/news")
+def get_news(category: str | None = None):
+    if category:
+        if category not in NEWS_CATEGORIES:
+            raise HTTPException(status_code=404, detail="unknown category")
+        return {"articles": news_module.fetch_category(category)}
+    return {"articles": news_module.fetch_all()}
 
 
 app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

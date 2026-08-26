@@ -104,6 +104,15 @@
     prospectsAnalyzeBtn: document.getElementById("prospects-analyze-btn"),
     prospectsStatus: document.getElementById("prospects-status"),
     prospectsMapEl: document.getElementById("prospects-map"),
+
+    newsBtn: document.getElementById("news-btn"),
+    newsPanel: document.getElementById("news-panel"),
+    newsBackdrop: document.getElementById("news-backdrop"),
+    newsClose: document.getElementById("news-close"),
+    newsStats: document.getElementById("news-stats"),
+    newsTabs: document.getElementById("news-tabs"),
+    newsDialIndicator: document.getElementById("news-dial-indicator"),
+    newsList: document.getElementById("news-list"),
   };
 
   const state = {
@@ -121,6 +130,8 @@
     currentApplication: null,
     prospectAreas: [],
     prospectSectors: {},
+    newsCategories: [],
+    newsCurrentCategory: "",
     prospectCategories: [],
     prospectsCurrentArea: null,
     businesses: [],
@@ -232,6 +243,7 @@
   async function openBubble(key, label) {
     closeHub();
     closeProspects();
+    closeNews();
     state.mode = "list";
     document.querySelectorAll("[data-mode]").forEach(b => {
       const active = b.dataset.mode === "list";
@@ -495,6 +507,7 @@
   function openHub() {
     closeBubble();
     closeProspects();
+    closeNews();
     els.hubPanel.classList.add("open");
     els.hubBackdrop.classList.add("open");
     loadCVs();
@@ -538,6 +551,9 @@
   window.addEventListener("resize", () => {
     if (els.hubPanel.classList.contains("open")) {
       positionHubDialIndicator(document.querySelector('[data-hub-tab].active'));
+    }
+    if (els.newsPanel.classList.contains("open")) {
+      positionNewsDialIndicator(els.newsTabs.querySelector("[data-news-tab].active"));
     }
   });
 
@@ -767,6 +783,7 @@
     if (els.jobModal.classList.contains("open")) closeJobModal();
     else if (els.hubPanel.classList.contains("open")) closeHub();
     else if (els.prospectsPanel.classList.contains("open")) closeProspects();
+    else if (els.newsPanel.classList.contains("open")) closeNews();
     else if (state.openBubble) closeBubble();
   });
 
@@ -1087,6 +1104,7 @@
   function openProspects() {
     closeBubble();
     closeHub();
+    closeNews();
     els.prospectsPanel.classList.add("open");
     els.prospectsBackdrop.classList.add("open");
     if (!prospectsMap) initProspectsMap();
@@ -1368,6 +1386,99 @@
     const area = state.prospectAreas.find(a => a.key === state.prospectsCurrentArea);
     const analyzed = state.businesses.filter(b => b.analyzed_at).length;
     els.prospectsStats.textContent = (area ? area.label : "") + ", UK · " + state.businesses.length + " businesses · " + analyzed + " analyzed";
+  }
+
+  // ---------- news ----------
+
+  const NEWS_CAT_COLOR = { world: "var(--src-reed)", tech: "var(--accent)", business: "var(--src-remoteok)" };
+
+  function openNews() {
+    closeBubble();
+    closeHub();
+    closeProspects();
+    els.newsPanel.classList.add("open");
+    els.newsBackdrop.classList.add("open");
+    loadNewsCategories().then(() => loadNews(state.newsCurrentCategory));
+  }
+
+  function closeNews() {
+    els.newsPanel.classList.remove("open");
+    els.newsBackdrop.classList.remove("open");
+  }
+
+  els.newsBtn.addEventListener("click", openNews);
+  els.newsClose.addEventListener("click", closeNews);
+  els.newsBackdrop.addEventListener("click", closeNews);
+
+  async function loadNewsCategories() {
+    if (state.newsCategories.length > 0) return;
+    const res = await fetch("/api/news/categories");
+    state.newsCategories = await res.json();
+    const tabsHtml = state.newsCategories.map(cat =>
+      '<button class="mode-btn" data-news-tab="' + cat.key + '" role="tab" aria-selected="false">' + escapeHtml(cat.label) + '</button>'
+    ).join("");
+    els.newsTabs.insertAdjacentHTML("beforeend", tabsHtml);
+    positionNewsDialIndicator(els.newsTabs.querySelector('[data-news-tab=""]'));
+  }
+
+  function positionNewsDialIndicator(btn) {
+    if (!btn) return;
+    els.newsDialIndicator.style.width = btn.offsetWidth + "px";
+    els.newsDialIndicator.style.transform = "translateX(" + (btn.offsetLeft - 2) + "px)";
+  }
+
+  els.newsTabs.addEventListener("click", e => {
+    const btn = e.target.closest("[data-news-tab]");
+    if (!btn) return;
+    els.newsTabs.querySelectorAll("[data-news-tab]").forEach(b => {
+      const active = b === btn;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", String(active));
+    });
+    positionNewsDialIndicator(btn);
+    state.newsCurrentCategory = btn.dataset.newsTab;
+    loadNews(state.newsCurrentCategory);
+  });
+
+  async function loadNews(category) {
+    els.newsList.innerHTML = '<div class="hub-empty">Loading&hellip;</div>';
+    const url = "/api/news" + (category ? "?category=" + encodeURIComponent(category) : "");
+    const res = await fetch(url);
+    const data = await res.json();
+    renderNewsList(data.articles || []);
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return "";
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return hours + "h ago";
+    return Math.round(hours / 24) + "d ago";
+  }
+
+  function renderNewsList(articles) {
+    if (articles.length === 0) {
+      els.newsList.innerHTML = '<div class="hub-empty">No articles right now — try again shortly.</div>';
+      els.newsStats.textContent = "0 stories";
+      return;
+    }
+    els.newsStats.textContent = articles.length + " stor" + (articles.length === 1 ? "y" : "ies");
+    els.newsList.innerHTML = articles.map(a => {
+      const color = NEWS_CAT_COLOR[a.category] || "var(--panel-edge)";
+      return (
+        '<a class="news-card" style="--news-cat-color:' + color + '" href="' + escapeHtml(a.link) + '" target="_blank" rel="noopener">' +
+          '<div class="news-card-head">' +
+            '<span class="news-source">' + escapeHtml(a.source) + '</span>' +
+            '<span class="news-time">' + timeAgo(a.published_at) + '</span>' +
+          '</div>' +
+          '<div class="news-title">' + escapeHtml(a.title) + '</div>' +
+          (a.summary ? '<div class="news-summary">' + escapeHtml(a.summary) + '</div>' : "") +
+        '</a>'
+      );
+    }).join("");
   }
 
   // ---------- clock ----------

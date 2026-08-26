@@ -334,8 +334,8 @@ button { font-family: inherit; }
 
 .overlay-card.open { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
 
-#panel-backdrop, #hub-backdrop, #prospects-backdrop { z-index: 9; }
-#panel, #hub-panel, #prospects-panel { z-index: 10; width: min(1000px, 94vw); height: min(800px, 90vh); }
+#panel-backdrop, #hub-backdrop, #prospects-backdrop, #news-backdrop { z-index: 9; }
+#panel, #hub-panel, #prospects-panel, #news-panel { z-index: 10; width: min(1000px, 94vw); height: min(800px, 90vh); }
 #job-backdrop { z-index: 19; }
 #job-modal { z-index: 20; width: min(760px, 92vw); height: min(720px, 88vh); }
 
@@ -1026,3 +1026,31 @@ a.hud-btn { text-decoration: none; display: inline-flex; align-items: center; }
 }
 .ch-status { font-size: 0.62rem; color: var(--text-faint); }
 .ch-status.overdue { color: var(--src-remoteok); }
+
+/* ---------- news ---------- */
+
+.news-body { padding: 1rem 1.6rem 1.6rem; overflow-y: auto; }
+
+.news-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.news-card {
+  display: block;
+  border: 1px solid var(--panel-edge);
+  border-left: 2px solid var(--news-cat-color, var(--panel-edge));
+  background: rgba(255,255,255,0.012);
+  padding: 0.65rem 0.8rem;
+  text-decoration: none;
+  clip-path: polygon(0 8px, 8px 0, 100% 0, 100% 100%, 0 100%);
+}
+.news-card:hover { background: rgba(47,231,196,0.04); }
+
+.news-card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+.news-source {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--news-cat-color, var(--text-dim));
+}
+.news-time { font-size: 0.6rem; color: var(--text-faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+.news-title { font-size: 0.8rem; color: var(--text); line-height: 1.4; margin-bottom: 0.25rem; }
+.news-summary { font-size: 0.68rem; color: var(--text-dim); line-height: 1.5; }

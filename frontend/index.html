@@ -29,6 +29,7 @@
       <label class="hud-toggle"><input id="toggle-eu" type="checkbox" checked /> EU net</label>
       <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
       <button id="prospects-btn" class="hud-btn hud-btn--ghost">UK Prospects</button>
+      <button id="news-btn" class="hud-btn hud-btn--ghost">News</button>
       <button id="refresh-btn" class="hud-btn">Refresh</button>
       <span id="refresh-status" class="refresh-status"></span>
     </div>
@@ -214,6 +215,27 @@
         <div id="prospects-map"></div>
         <div class="prospects-map-overlay" aria-hidden="true"></div>
       </div>
+    </div>
+  </div>
+
+  <div class="overlay-backdrop" id="news-backdrop"></div>
+  <div class="overlay-card" id="news-panel" role="dialog" aria-modal="true" aria-labelledby="news-title">
+    <div class="panel-head">
+      <div>
+        <div class="panel-eyebrow">Daily briefing</div>
+        <h2 id="news-title">News</h2>
+      </div>
+      <button class="icon-btn" id="news-close" aria-label="Close news">&#10005;</button>
+    </div>
+    <div class="panel-meta">
+      <span id="news-stats">&mdash;</span>
+      <div class="mode-toggle hub-dial" role="tablist" id="news-tabs">
+        <span class="hub-dial-indicator" id="news-dial-indicator" aria-hidden="true"></span>
+        <button class="mode-btn active" data-news-tab="" role="tab" aria-selected="true">All</button>
+      </div>
+    </div>
+    <div class="hub-body news-body">
+      <div id="news-list" class="news-list"></div>
     </div>
   </div>
 </div>
