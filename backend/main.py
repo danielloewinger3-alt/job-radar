@@ -1,7 +1,6 @@
 import logging
-import threading
 import uuid
-from datetime import datetime
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -29,23 +28,34 @@ from backend.config import (
 from backend.cv_text import extract_text as extract_cv_text
 from backend.db import get_session, init_db
 from backend import news as news_module
-from backend.models import CV, Application, Business, Job, Profile, Project
-from backend.poller import poll_all_sources
+from backend.models import CV, Application, Business, Job, Profile, Project, utcnow
+from backend import poller
 from backend.prospects import scan as prospect_scan
 from backend import scheduler as scheduler_module
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Job Search Tool")
+
+@asynccontextmanager
+async def lifespan(_app: "FastAPI"):
+    poller.clear_stop()
+    init_db()
+    poller.try_start_background_poll(name="startup-poll")
+    scheduler_module.start()
+    try:
+        yield
+    finally:
+        poller.request_stop()
+        scheduler_module.shutdown()
+        if not poller.join_worker(timeout=10.0):
+            logging.getLogger("lifespan").warning(
+                "poll worker still running after shutdown wait"
+            )
+
+
+app = FastAPI(title="Job Search Tool", lifespan=lifespan)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-    threading.Thread(target=poll_all_sources, daemon=True).start()
-    scheduler_module.start()
 
 
 @app.get("/api/cities")
@@ -103,10 +113,17 @@ def mark_seen(job_id: str):
         return {"ok": True}
 
 
-@app.post("/api/refresh")
+@app.post("/api/refresh", status_code=202)
 def refresh():
-    counts = poll_all_sources()
-    return {"new_jobs": counts, "total_new": sum(counts.values())}
+    started = poller.try_start_background_poll(name="refresh-poll")
+    # Poll now runs in the background. Shape kept for frontend compatibility:
+    # new_jobs stays an object, total_new stays an int (both empty). The real
+    # counts land in the DB and the client re-reads them via /api/cities.
+    return {
+        "status": "started" if started else "already_running",
+        "new_jobs": {},
+        "total_new": 0,
+    }
 
 
 class NotesUpdate(BaseModel):
@@ -285,7 +302,7 @@ def update_profile(body: ProfileIn):
         profile = session.get(Profile, 1) or Profile(id=1)
         for key, value in body.model_dump().items():
             setattr(profile, key, value)
-        profile.updated_at = datetime.utcnow()
+        profile.updated_at = utcnow()
         session.add(profile)
         session.commit()
         session.refresh(profile)
@@ -361,7 +378,7 @@ def revise_application(application_id: int, body: ReviseIn):
             raise HTTPException(status_code=502, detail=f"AI revision failed: {e}")
 
         application.cover_letter = revised
-        application.updated_at = datetime.utcnow()
+        application.updated_at = utcnow()
         session.add(application)
         session.commit()
         session.refresh(application)
