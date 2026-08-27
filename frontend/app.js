@@ -153,6 +153,40 @@
     return div.innerHTML;
   }
 
+  // Externally supplied links only. Returns an absolute http(s) URL string, or
+  // "#" for anything else: other schemes (javascript:, data:, blob:, file:,
+  // mailto:, tel:), malformed strings, ordinary relative text, root-relative
+  // paths, scheme-relative URLs, empty/whitespace, and non-strings.
+  // Parsed with NO base URL on purpose, so "not a url" or "/path" can never be
+  // coerced into a same-origin link — they throw and collapse to "#".
+  function safeUrl(raw) {
+    if (typeof raw !== "string") return "#";
+    const trimmed = raw.trim();
+    if (!trimmed) return "#";
+    let parsed;
+    try {
+      parsed = new URL(trimmed); // no second arg — relative/garbage throws here
+    } catch (e) {
+      return "#";
+    }
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") ? parsed.href : "#";
+  }
+
+  // Normalize an externally supplied website field before validation: accept an
+  // existing absolute http(s) URL as-is, prepend https:// only when the value
+  // plausibly looks like a bare hostname/domain, and reject everything else
+  // (non-strings, empty, other schemes, arbitrary text) via safeUrl.
+  function safeWebsiteUrl(raw) {
+    if (typeof raw !== "string") return "#";
+    const trimmed = raw.trim();
+    if (!trimmed) return "#";
+    if (/^https?:\/\//i.test(trimmed)) return safeUrl(trimmed);
+    // Bare hostname/domain: letters/digits/hyphen labels, a dot, a TLD, then an
+    // optional path/query/fragment. No scheme, no whitespace, no colon.
+    if (/^[a-z0-9-]+(\.[a-z0-9-]+)+([\/?#].*)?$/i.test(trimmed)) return safeUrl("https://" + trimmed);
+    return "#";
+  }
+
   function truncate(str, n) { return str.length > n ? str.slice(0, n - 1) + "…" : str; }
 
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -229,8 +263,17 @@
   }
 
   async function loadCities() {
-    const res = await fetch("/api/cities");
-    state.cities = await res.json();
+    let rows;
+    try {
+      const res = await fetch("/api/cities");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      rows = await res.json();
+    } catch (e) {
+      console.error("loadCities failed", e);
+      els.refreshStatus.textContent = "Map data failed to load";
+      return; // keep existing markers, state.cities, and stats intact
+    }
+    state.cities = rows;
 
     Object.values(state.markers).forEach(m => map.removeLayer(m));
     state.markers = {};
@@ -247,8 +290,16 @@
   }
 
   async function loadRemoteSummary() {
-    const res = await fetch("/api/jobs?remote=true");
-    const jobs = await res.json();
+    let jobs;
+    try {
+      const res = await fetch("/api/jobs?remote=true");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      jobs = await res.json();
+    } catch (e) {
+      console.error("loadRemoteSummary failed", e);
+      els.refreshStatus.textContent = "Remote data failed to load";
+      return; // keep the existing remote pin/count and totals intact
+    }
     const unseen = jobs.filter(j => !j.seen).length;
     els.remotePin.classList.toggle("has-new", unseen > 0);
     if (unseen > 0) { els.remoteCount.hidden = false; els.remoteCount.textContent = unseen; }
@@ -282,9 +333,16 @@
     stopNetwork();
 
     const url = key === "remote" ? "/api/jobs?remote=true" : "/api/jobs?city=" + encodeURIComponent(key);
-    const res = await fetch(url);
-    const jobs = await res.json();
-    state.openBubble = { key, label, jobs };
+    let jobs = [], loadError = false;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      jobs = await res.json();
+    } catch (e) {
+      console.error("openBubble fetch failed", e);
+      loadError = true;
+    }
+    state.openBubble = { key, label, jobs, loadError };
 
     renderCasefile();
     const city = state.cities.find(c => c.key === key);
@@ -327,7 +385,10 @@
 
     const visibleJobs = bubble.jobs.filter(matchesFilter);
     if (visibleJobs.length === 0) {
-      els.panelList.innerHTML = '<div class="empty-state">' + (bubble.jobs.length === 0 ? "No signals detected yet." : "No roles match that filter.") + '</div>';
+      const msg = bubble.loadError
+        ? "Couldn't load roles for this city. Close and try again."
+        : (bubble.jobs.length === 0 ? "No signals detected yet." : "No roles match that filter.");
+      els.panelList.innerHTML = '<div class="empty-state">' + msg + '</div>';
       return;
     }
 
@@ -408,7 +469,23 @@
     els.jobModalDescription.textContent = job.description_full || job.description_snippet || "No description was provided by the source.";
     els.jobModalNotesInput.value = job.notes || "";
     els.jobModalNotesStatus.textContent = "";
-    els.jobModalView.href = job.url;
+    const viewUrl = safeUrl(job.url);
+    if (viewUrl !== "#") {
+      els.jobModalView.href = viewUrl;
+      els.jobModalView.removeAttribute("aria-disabled");
+      els.jobModalView.style.opacity = "";
+      els.jobModalView.style.pointerEvents = "";
+      els.jobModalView.removeAttribute("title");
+    } else {
+      // No usable link: turn the anchor into an inert, visibly-dimmed non-link.
+      // Removing href prevents navigation and any "#" fragment write; there is
+      // no click handler on this element, so the modal is unaffected.
+      els.jobModalView.removeAttribute("href");
+      els.jobModalView.setAttribute("aria-disabled", "true");
+      els.jobModalView.style.pointerEvents = "none";
+      els.jobModalView.style.opacity = "0.5";
+      els.jobModalView.title = "No valid link for this posting";
+    }
     els.jobModalApply.hidden = true;
     els.jobModalApplyStatus.textContent = "";
     state.currentApplication = null;
@@ -585,8 +662,16 @@
   });
 
   async function loadGithub() {
-    const res = await fetch("/api/github/repos");
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch("/api/github/repos");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      data = await res.json();
+    } catch (e) {
+      console.error("loadGithub failed", e);
+      els.githubStatus.textContent = "Couldn't load GitHub data — check your connection and reopen the Dossier.";
+      return; // leave state.githubConfigured/githubRepos and the grid intact
+    }
     state.githubConfigured = data.configured;
     state.githubRepos = data.repos || [];
     renderGithubGrid(data);
@@ -618,14 +703,23 @@
         '<span class="hub-card-tag' + (repo.private ? " hub-card-tag--private" : "") + '">' + escapeHtml(tag) + '</span>' +
         (repo.description ? '<div class="hub-card-desc">' + escapeHtml(repo.description) + '</div>' : "") +
         '<div class="hub-card-meta">' + (updated ? "Updated " + updated : "") + (repo.stars ? " &middot; &#9733; " + repo.stars : "") + '</div>' +
-        '<div class="hub-card-actions"><a href="' + escapeHtml(repo.url) + '" target="_blank" rel="noopener">Open</a></div>';
+        '<div class="hub-card-actions"><a href="' + escapeHtml(safeUrl(repo.url)) + '" target="_blank" rel="noopener">Open</a></div>';
       els.githubGrid.appendChild(card);
     });
   }
 
   async function loadCVs() {
-    const res = await fetch("/api/cvs");
-    state.cvs = await res.json();
+    let cvs;
+    try {
+      const res = await fetch("/api/cvs");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      cvs = await res.json();
+    } catch (e) {
+      console.error("loadCVs failed", e);
+      els.cvGrid.innerHTML = '<div class="hub-empty">Couldn\'t load your CVs. Reopen the Dossier to retry.</div>';
+      return; // keep any previously loaded CVs in state and the apply dropdown
+    }
+    state.cvs = cvs;
     renderCvGrid();
     renderApplyCvOptions();
     updateHubCount();
@@ -680,8 +774,17 @@
   });
 
   async function loadProjects() {
-    const res = await fetch("/api/projects");
-    state.projects = await res.json();
+    let projects;
+    try {
+      const res = await fetch("/api/projects");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      projects = await res.json();
+    } catch (e) {
+      console.error("loadProjects failed", e);
+      els.projectGrid.innerHTML = '<div class="hub-empty">Couldn\'t load your projects. Reopen the Dossier to retry.</div>';
+      return; // keep any previously loaded projects in state
+    }
+    state.projects = projects;
     renderProjectGrid();
     updateHubCount();
   }
@@ -701,7 +804,7 @@
         tags.map(t => '<span class="hub-card-tag">' + escapeHtml(t) + '</span>').join(" ") +
         (project.description ? '<div class="hub-card-desc">' + escapeHtml(project.description) + '</div>' : "") +
         '<div class="hub-card-actions">' +
-          (project.link ? '<a href="' + escapeHtml(project.link) + '" target="_blank" rel="noopener">Open link</a>' : "") +
+          (project.link ? '<a href="' + escapeHtml(safeUrl(project.link)) + '" target="_blank" rel="noopener">Open link</a>' : "") +
           '<button type="button" data-delete-project="' + project.id + '">Delete</button>' +
         '</div>';
       card.querySelector("[data-delete-project]").addEventListener("click", () => deleteProject(project.id));
@@ -739,8 +842,16 @@
   });
 
   async function loadProfile() {
-    const res = await fetch("/api/profile");
-    const profile = await res.json();
+    let profile;
+    try {
+      const res = await fetch("/api/profile");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      profile = await res.json();
+    } catch (e) {
+      console.error("loadProfile failed", e);
+      els.profileFormStatus.textContent = "Couldn't load your saved profile.";
+      return; // leave whatever is already in the form fields untouched
+    }
     els.profileFullName.value = profile.full_name || "";
     els.profileEmail.value = profile.email || "";
     els.profilePhone.value = profile.phone || "";
@@ -1156,11 +1267,20 @@
   }
 
   async function loadProspectMeta() {
-    const res = await fetch("/api/prospects/areas");
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch("/api/prospects/areas");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      data = await res.json();
+    } catch (e) {
+      console.error("loadProspectMeta failed", e);
+      els.prospectsStats.textContent = "Couldn't load prospect areas. Close and reopen.";
+      return false; // keep any previously loaded areas/sectors/categories
+    }
     state.prospectAreas = data.areas;
     state.prospectSectors = data.sectors || {};
     state.prospectCategories = data.categories;
+    return true;
   }
 
   function categoryLabel(key) {
@@ -1251,7 +1371,7 @@
     els.prospectsCityControls.hidden = true;
     els.prospectsSidebar.hidden = true;
     clearBizMarkers();
-    await loadProspectMeta();
+    if (!(await loadProspectMeta())) return; // loader already surfaced the failure in prospects-stats
     renderAreaMarkers();
     prospectsMap.setView([54.5, -3.5], 6);
     const n = state.prospectAreas.length;
@@ -1342,8 +1462,17 @@
   async function loadBusinesses() {
     const areaKey = state.prospectsCurrentArea;
     if (!areaKey) return;
-    const res = await fetch("/api/prospects/" + areaKey + "/businesses");
-    state.businesses = await res.json();
+    let businesses;
+    try {
+      const res = await fetch("/api/prospects/" + areaKey + "/businesses");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      businesses = await res.json();
+    } catch (e) {
+      console.error("loadBusinesses failed", e);
+      els.prospectsStatus.textContent = "Couldn't load businesses for this area.";
+      return; // keep the current sidebar and markers in place
+    }
+    state.businesses = businesses;
     renderSidebar();
     renderBizMarkers();
     updateProspectsStats();
@@ -1378,7 +1507,7 @@
   function renderBusinessPopup(business) {
     const links = [
       business.phone ? escapeHtml(business.phone) : "",
-      business.website ? '<a href="' + escapeHtml(business.website.startsWith("http") ? business.website : "https://" + business.website) + '" target="_blank" rel="noopener">Website</a>' : "no website found",
+      business.website ? '<a href="' + escapeHtml(safeWebsiteUrl(business.website)) + '" target="_blank" rel="noopener">Website</a>' : "no website found",
     ].filter(Boolean).join(" &middot; ");
 
     let chStatus = "";
@@ -1442,8 +1571,16 @@
 
   async function loadNewsCategories() {
     if (state.newsCategories.length > 0) return;
-    const res = await fetch("/api/news/categories");
-    state.newsCategories = await res.json();
+    let cats;
+    try {
+      const res = await fetch("/api/news/categories");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      cats = await res.json();
+    } catch (e) {
+      console.error("loadNewsCategories failed", e);
+      return; // leave tabs at the static "All" tab; loadNews still runs
+    }
+    state.newsCategories = cats;
     const tabsHtml = state.newsCategories.map(cat =>
       '<button class="mode-btn" data-news-tab="' + cat.key + '" role="tab" aria-selected="false">' + escapeHtml(cat.label) + '</button>'
     ).join("");
@@ -1476,8 +1613,18 @@
     const requestId = ++newsRequestId;
     els.newsList.innerHTML = '<div class="loading-state"><span class="loading-ring"></span>Loading&hellip;</div>';
     const url = "/api/news" + (category ? "?category=" + encodeURIComponent(category) : "");
-    const res = await fetch(url);
-    const data = await res.json();
+    let data;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      data = await res.json();
+    } catch (e) {
+      if (requestId !== newsRequestId) return; // a newer tab click won — stay silent
+      console.error("loadNews failed", e);
+      els.newsList.innerHTML = '<div class="hub-empty">Couldn\'t load the news feed — try again shortly.</div>';
+      els.newsStats.textContent = "—";
+      return;
+    }
     if (requestId !== newsRequestId) return; // a newer tab click superseded this fetch
     renderNewsList(data.articles || []);
   }
@@ -1503,7 +1650,7 @@
     els.newsList.innerHTML = articles.map(a => {
       const color = NEWS_CAT_COLOR[a.category] || "var(--panel-edge)";
       return (
-        '<a class="news-card" style="--news-cat-color:' + color + '" href="' + escapeHtml(a.link) + '" target="_blank" rel="noopener">' +
+        '<a class="news-card" style="--news-cat-color:' + color + '" href="' + escapeHtml(safeUrl(a.link)) + '" target="_blank" rel="noopener">' +
           '<div class="news-card-head">' +
             '<span class="news-source">' + escapeHtml(a.source) + '</span>' +
             '<span class="news-time">' + timeAgo(a.published_at) + '</span>' +
@@ -1688,9 +1835,11 @@
   // ---------- init ----------
 
   (async function init() {
-    await loadCities();
-    await loadRemoteSummary();
-    await loadCVs();
+    // Guard each loader independently so one failure can't stop the others or
+    // the clock. (Each loader also swallows its own errors internally.)
+    try { await loadCities(); } catch (e) { console.error(e); }
+    try { await loadRemoteSummary(); } catch (e) { console.error(e); }
+    try { await loadCVs(); } catch (e) { console.error(e); }
     tickClock();
     setInterval(tickClock, 1000);
   })();
