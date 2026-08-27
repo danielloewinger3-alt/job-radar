@@ -948,11 +948,22 @@
     els.refreshStatus.textContent = "Refreshing…";
     try {
       const res = await fetch("/api/refresh", { method: "POST" });
-      const data = await res.json();
-      els.refreshStatus.textContent = "+" + data.total_new + " new";
+      if (!res.ok) {
+        els.refreshStatus.textContent = "Refresh failed";
+      } else {
+        // /api/refresh is asynchronous (HTTP 202): it kicks off a background
+        // poll and cannot report a completed-job count. Report the state only.
+        const data = await res.json();
+        els.refreshStatus.textContent =
+          data.status === "already_running"
+            ? "Refresh already running"
+            : "Refresh running…";
+      }
     } catch (e) {
       els.refreshStatus.textContent = "Refresh failed";
     }
+    // Immediate reload of the current DB state. The background poll may land
+    // after this returns; its results will show on the next refresh/reload.
     await loadCities();
     await loadRemoteSummary();
     if (state.openBubble) closeBubble();

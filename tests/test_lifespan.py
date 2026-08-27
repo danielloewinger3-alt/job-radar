@@ -20,13 +20,37 @@ def _scheduler_has_shutdown():
     return hasattr(s, "shutdown")
 
 
+def _patch_poll(monkeypatch, m, fn):
+    """Neutralize the poll at whichever seam this branch uses.
+
+    master calls ``backend.main.poll_all_sources`` (imported name); the
+    restart-safe branch's background worker looks up
+    ``backend.poller.poll_all_sources`` at call time. Patch both so this test
+    stays implementation-neutral.
+    """
+    import backend.poller as poller_mod
+
+    monkeypatch.setattr(poller_mod, "poll_all_sources", fn)
+    monkeypatch.setattr(m, "poll_all_sources", fn, raising=False)
+
+
+def _join_poll_worker(timeout: float) -> bool:
+    """Wait for any background poll worker to finish (and release the gate).
+
+    No-op / True on master, which has no tracked worker."""
+    import backend.poller as poller_mod
+
+    joiner = getattr(poller_mod, "join_worker", None)
+    return joiner(timeout=timeout) if joiner else True
+
+
 def test_app_lifespan_boots_and_serves(monkeypatch):
     import backend.db as backend_db
     import backend.main as m
 
     seen = {"sched_start": 0, "poll": 0}
-    monkeypatch.setattr(
-        m, "poll_all_sources",
+    _patch_poll(
+        monkeypatch, m,
         lambda: (seen.__setitem__("poll", seen["poll"] + 1), {})[1],
     )
     monkeypatch.setattr(
@@ -56,7 +80,7 @@ def test_lifespan_survives_two_cycles(monkeypatch):
     lands a per-lifespan scheduler + shutdown()."""
     import backend.main as m
 
-    monkeypatch.setattr(m, "poll_all_sources", lambda: {})
+    _patch_poll(monkeypatch, m, lambda: {})
 
     baseline = threading.active_count()
     for _ in range(2):
@@ -72,16 +96,19 @@ def test_refresh_already_running_contract(client, monkeypatch):
     class. Skips on the blocking master implementation."""
     import backend.main as m
 
-    monkeypatch.setattr(m, "poll_all_sources", lambda: {})
+    _patch_poll(monkeypatch, m, lambda: {})
     probe = client.post("/api/refresh")
     if not (probe.status_code == 202 and probe.json().get("status") == "started"):
         pytest.skip("async /api/refresh contract not present on this branch")
+    # let the probe's fast worker finish and release the poll gate
+    assert _join_poll_worker(timeout=5)
 
     release = threading.Event()
-    monkeypatch.setattr(m, "poll_all_sources", lambda: release.wait(timeout=5) or {})
+    _patch_poll(monkeypatch, m, lambda: release.wait(timeout=5) or {})
     first = client.post("/api/refresh")
     second = client.post("/api/refresh")
     release.set()
+    assert _join_poll_worker(timeout=5)
 
     assert first.status_code == 202
     assert second.status_code == 202

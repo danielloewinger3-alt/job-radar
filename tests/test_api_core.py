@@ -140,8 +140,13 @@ def test_update_notes_missing_job_is_404(client):
 # --------------------------------------------------------------------------- #
 def test_refresh_returns_stable_shape(client, monkeypatch):
     import backend.main as backend_main
+    import backend.poller as backend_poller
 
-    monkeypatch.setattr(backend_main, "poll_all_sources", lambda: {"greenhouse": 0})
+    # master calls backend.main.poll_all_sources (imported name); the
+    # restart-safe branch's background worker looks up
+    # backend.poller.poll_all_sources at call time. Patch both.
+    monkeypatch.setattr(backend_poller, "poll_all_sources", lambda: {"greenhouse": 0})
+    monkeypatch.setattr(backend_main, "poll_all_sources", lambda: {"greenhouse": 0}, raising=False)
     r = client.post("/api/refresh")
 
     # master returns 200 (blocking); the backend-reliability branch will return 202
@@ -150,3 +155,7 @@ def test_refresh_returns_stable_shape(client, monkeypatch):
     body = r.json()
     assert isinstance(body.get("total_new"), int)
     assert isinstance(body.get("new_jobs"), dict)
+
+    joiner = getattr(backend_poller, "join_worker", None)
+    if joiner:
+        assert joiner(timeout=5)

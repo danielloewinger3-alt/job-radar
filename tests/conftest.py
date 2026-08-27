@@ -146,9 +146,13 @@ def client(isolated_db, monkeypatch):
     """
     import backend.config as backend_config
     import backend.main as backend_main
+    import backend.poller as backend_poller
     from fastapi.testclient import TestClient
 
-    monkeypatch.setattr(backend_main, "poll_all_sources", lambda: {})
+    # /api/refresh now spawns a background poll worker that calls
+    # backend.poller.poll_all_sources; neutralize it at that seam so no live
+    # polling or network access happens during API tests.
+    monkeypatch.setattr(backend_poller, "poll_all_sources", lambda: {})
     monkeypatch.setattr(backend_main.scheduler_module, "start", lambda *a, **k: None)
     monkeypatch.setattr(backend_main, "UPLOAD_DIR", backend_config.UPLOAD_DIR)
 

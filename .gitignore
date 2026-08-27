@@ -1,4 +1,6 @@
 *.db
+jobs.db-wal
+jobs.db-shm
 .env
 __pycache__/
 *.pyc
