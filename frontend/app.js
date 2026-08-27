@@ -1524,15 +1524,26 @@
   let alfredListening = false;
   let alfredHideTimer = null;
 
+  // Name fragments that mark a platform's higher-quality "enhanced"/neural voice.
+  // pickAlfredVoice() prefers these variants (its first two tiers), and
+  // alfredSpeak() uses the same list to skip the butler pitch drop on them —
+  // keep the two in sync.
+  const ENHANCED_VOICE_RE = /enhanced|premium|natural|online/i;
+
   function pickAlfredVoice() {
     if (!synth) return null;
     const voices = synth.getVoices();
     if (voices.length === 0) return null;
-    // Prefer a measured British male voice for the butler persona; fall back
-    // gracefully through progressively looser matches, then any English voice.
-    const byName = name => voices.find(v => v.name.toLowerCase().includes(name));
+    // Prefer a measured British male voice for the butler persona. Try each
+    // platform's higher-quality "enhanced"/neural variant first, since those
+    // sound far less robotic than the default compact voices, then fall back
+    // gracefully through progressively looser matches.
+    const byName = re => voices.find(v => re.test(v.name));
     return (
-      byName("daniel") ||                                            // macOS/Safari/Chrome UK male
+      byName(/daniel.*(enhanced|premium)/i) ||                        // macOS/Safari high-quality Daniel
+      byName(/ryan.*online.*natural/i) ||                              // Edge/Windows neural voice
+      byName(/^google uk english male/i) ||                            // Chrome network voice
+      byName(/daniel/i) ||                                             // macOS/Safari/Chrome default Daniel
       voices.find(v => /male/i.test(v.name) && /gb|uk|british/i.test(v.lang + " " + v.name)) ||
       voices.find(v => /gb|uk/i.test(v.lang)) ||
       voices.find(v => v.lang.startsWith("en")) ||
@@ -1567,8 +1578,12 @@
     synth.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     if (alfredVoice) utterance.voice = alfredVoice;
-    utterance.rate = 0.96;
-    utterance.pitch = 0.85;
+    // High-quality neural voices already sound natural; detuning their pitch
+    // makes them sound worse, so only apply the "butler" pitch drop to the
+    // lower-quality compact voices that need it.
+    const isEnhancedVoice = alfredVoice && ENHANCED_VOICE_RE.test(alfredVoice.name);
+    utterance.rate = isEnhancedVoice ? 0.99 : 0.96;
+    utterance.pitch = isEnhancedVoice ? 0.97 : 0.85;
     els.alfredBtn.classList.add("speaking");
     utterance.onend = utterance.onerror = () => {
       els.alfredBtn.classList.remove("speaking");
