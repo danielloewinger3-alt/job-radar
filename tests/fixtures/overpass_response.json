@@ -1,0 +1,44 @@
+{
+  "version": 0.6,
+  "elements": [
+    {
+      "type": "node",
+      "id": 111,
+      "lat": 51.4545,
+      "lon": -2.5879,
+      "tags": {
+        "name": "Bright Smiles Dental",
+        "amenity": "dentist",
+        "addr:housenumber": "12",
+        "addr:street": "Park Row",
+        "addr:city": "Bristol",
+        "addr:postcode": "BS1 5LJ",
+        "phone": "+44 117 000 0000",
+        "website": "https://brightsmiles.example"
+      }
+    },
+    {
+      "type": "way",
+      "id": 222,
+      "center": { "lat": 51.4600, "lon": -2.5900 },
+      "tags": {
+        "name": "Central Physio Clinic",
+        "healthcare": "physiotherapist",
+        "contact:phone": "+44 117 111 1111",
+        "contact:website": "https://centralphysio.example"
+      }
+    },
+    {
+      "type": "node",
+      "id": 333,
+      "lat": 51.4500,
+      "lon": -2.5800,
+      "tags": { "amenity": "dentist" }
+    },
+    {
+      "type": "node",
+      "id": 444,
+      "tags": { "name": "No Coords Ltd" }
+    }
+  ]
+}

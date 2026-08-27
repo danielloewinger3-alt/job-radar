@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "id": 88001,
+      "title": "Graduate Software Engineer",
+      "company": { "display_name": "BigCo Ltd" },
+      "location": { "display_name": "Manchester, North West England" },
+      "redirect_url": "https://www.adzuna.co.uk/jobs/details/88001",
+      "created": "2026-08-01T08:00:00Z",
+      "description": "Great grad role for a <b>software engineer</b>."
+    }
+  ]
+}

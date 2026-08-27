@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Feed</title>
+    <link>https://example.com/</link>
+    <description>Fixture feed for tests</description>
+    <item>
+      <title>First headline about technology</title>
+      <link>https://example.com/articles/first</link>
+      <pubDate>Wed, 27 Aug 2026 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Summary <b>one</b> with <script>bad()</script> markup.</p>]]></description>
+    </item>
+    <item>
+      <title>Second headline</title>
+      <link>https://example.com/articles/second</link>
+      <description><![CDATA[Plain summary two.]]></description>
+    </item>
+    <item>
+      <title></title>
+      <link>https://example.com/articles/no-title</link>
+      <pubDate>Wed, 27 Aug 2026 08:00:00 GMT</pubDate>
+      <description>Missing title, should be skipped.</description>
+    </item>
+  </channel>
+</rss>

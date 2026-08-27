@@ -1,0 +1,25 @@
+{
+  "SearchResult": {
+    "SearchResultCount": 1,
+    "SearchResultItems": [
+      {
+        "MatchedObjectId": "999001",
+        "MatchedObjectDescriptor": {
+          "PositionID": "IT-2026-999001",
+          "PositionTitle": "IT Specialist (Software Engineer)",
+          "OrganizationName": "General Services Administration",
+          "PositionURI": "https://www.usajobs.gov/job/999001",
+          "PublicationStartDate": "2026-08-01",
+          "PositionLocation": [
+            { "LocationName": "New York, New York" }
+          ],
+          "UserArea": {
+            "Details": {
+              "JobSummary": "<p>Build and maintain federal software systems.</p>"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

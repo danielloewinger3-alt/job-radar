@@ -1,0 +1,18 @@
+[
+  {
+    "id": "abc-123",
+    "text": "Junior Software Engineer",
+    "categories": { "location": "Tel Aviv", "team": "Engineering" },
+    "hostedUrl": "https://jobs.lever.co/example/abc-123",
+    "createdAt": 1690000000000,
+    "descriptionPlain": "Plain-text description from Lever.\nSecond line."
+  },
+  {
+    "id": "def-456",
+    "text": "Marketing Lead",
+    "categories": {},
+    "hostedUrl": "https://jobs.lever.co/example/def-456",
+    "createdAt": 1690100000000,
+    "descriptionPlain": "Not an engineering role."
+  }
+]

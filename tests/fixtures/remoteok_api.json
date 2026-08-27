@@ -1,0 +1,23 @@
+[
+  {
+    "legal": "RemoteOK API legal notice - first element is never a job posting"
+  },
+  {
+    "id": "1009",
+    "position": "Backend Engineer",
+    "company": "RemoteCo",
+    "location": "",
+    "url": "https://remoteok.com/remote-jobs/1009",
+    "date": "2026-08-01T00:00:00+00:00",
+    "description": "<p>Fully <strong>remote</strong> backend role.</p>"
+  },
+  {
+    "id": "1010",
+    "position": "Senior Backend Engineer",
+    "company": "RemoteCo",
+    "location": "Worldwide",
+    "url": "https://remoteok.com/remote-jobs/1010",
+    "date": "2026-08-02T00:00:00+00:00",
+    "description": "Senior only."
+  }
+]
