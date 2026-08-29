@@ -64,9 +64,16 @@ def _add_missing_columns() -> None:
 
 
 def init_db() -> None:
+    # Imported here, never at module scope: keeps backend.db import-time free of
+    # any feature-package coupling and avoids an import cycle
+    # (backend.features -> feature routers -> ... would otherwise loop back).
+    from backend import features
+
     _enable_wal(engine)
-    SQLModel.metadata.create_all(engine)
-    _add_missing_columns()
+    features.import_feature_models()          # phase 1: register future tables on the metadata
+    SQLModel.metadata.create_all(engine)      # phase 2: create every known table
+    _add_missing_columns()                    # phase 3: legacy additive column migration
+    features.run_feature_migrations(engine)   # phase 4: explicit per-feature migrations, in order
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

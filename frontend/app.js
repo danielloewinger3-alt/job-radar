@@ -1681,6 +1681,9 @@
   let alfredRecognizer = null;
   let alfredListening = false;
   let alfredHideTimer = null;
+  // Set only via window.JobRadar.registerAlfredDispatcher(). Stays null (and the
+  // built-in handler stays fully in charge) until a future module registers one.
+  let alfredDispatcher = null;
 
   // Name fragments that mark a platform's higher-quality "enhanced"/neural voice.
   // pickAlfredVoice() prefers these variants (its first two tiers), and
@@ -1765,7 +1768,25 @@
     return false;
   }
 
+  // dispatchAlfredCommand is the single entry point the recognizer calls. A
+  // future Alfred module can take over parsing by registering a dispatcher via
+  // window.JobRadar.registerAlfredDispatcher(); when none is registered, or the
+  // registered one declines (returns a falsy value) or throws, this falls back
+  // to the built-in command set with identical behavior.
   function dispatchAlfredCommand(heard) {
+    if (alfredDispatcher) {
+      let handled = false;
+      try {
+        handled = alfredDispatcher(heard, { speak: alfredSpeak, builtin: builtinAlfredDispatch });
+      } catch (err) {
+        console.error("Alfred dispatcher threw; using built-in handler", err);
+      }
+      if (handled) return;
+    }
+    builtinAlfredDispatch(heard);
+  }
+
+  function builtinAlfredDispatch(heard) {
     const text = heard.trim().toLowerCase();
     let match;
 
@@ -1842,6 +1863,23 @@
     const pad = n => String(n).padStart(2, "0");
     els.clock.textContent = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
   }
+
+  // ---------- window.JobRadar bridge ----------
+  // Minimal, frozen surface for the ordered feature modules loaded after this
+  // file. Only what the revised plan needs: a version marker, the existing
+  // Alfred speech helper, and the Alfred dispatcher registration hook. No
+  // internal mutable state is exposed -- alfredDispatcher lives in this closure
+  // and is only settable through registerAlfredDispatcher().
+  window.JobRadar = Object.freeze({
+    version: 1,
+    speak: alfredSpeak,
+    registerAlfredDispatcher: function (fn) {
+      if (typeof fn !== "function") {
+        throw new TypeError("registerAlfredDispatcher expects a function");
+      }
+      alfredDispatcher = fn;
+    },
+  });
 
   // ---------- init ----------
 

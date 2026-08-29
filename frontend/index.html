@@ -249,8 +249,23 @@
       <div id="news-list" class="news-list"></div>
     </div>
   </div>
+
+  <!-- Empty mount points for the future workstream UIs. Each stays hidden and
+       unstyled until its module (js/<name>.js) builds into it. -->
+  <div id="integrations-root" hidden></div>
+  <div id="tracker-root" hidden></div>
+  <div id="projectfiles-root" hidden></div>
+  <div id="outreach-root" hidden></div>
+  <div id="alfred-root" hidden></div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Ordered classic IIFE scripts. app.js defines window.JobRadar synchronously,
+     then each feature placeholder loads in fixed order. -->
 <script src="app.js"></script>
+<script src="js/integrations.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/projectfiles.js"></script>
+<script src="js/outreach.js"></script>
+<script src="js/alfred.js"></script>
 </body>
 </html>

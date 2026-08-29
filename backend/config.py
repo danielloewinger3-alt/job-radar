@@ -12,6 +12,54 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 UPLOAD_DIR = BASE_DIR / "uploads" / "cvs"
 MAX_CV_BYTES = 15 * 1024 * 1024  # 15MB
 
+# ---------- Project files (Dossier project attachments) ----------
+# Storage root for uploaded project files. init_db() deliberately does NOT create
+# this directory; the future project-file service creates it lazily on first
+# write. Future project-file modules MUST read this value dynamically as
+# ``backend.config.PROJECTFILES_DIR`` (e.g. ``from backend import config`` then
+# ``config.PROJECTFILES_DIR``) and MUST NOT bind it with
+# ``from backend.config import PROJECTFILES_DIR`` -- the pytest fixture in
+# tests/conftest.py monkeypatches this attribute to redirect uploads into a
+# temporary directory before anything is written, and an early ``from``-import
+# would capture the real path and defeat that isolation.
+PROJECTFILES_DIR = BASE_DIR / "uploads" / "projectfiles"
+
+MAX_PROJECT_FILE_BYTES = 50 * 1024 * 1024                  # per file
+MAX_PROJECT_FILES_PER_PROJECT = 100                        # per project: file count
+MAX_PROJECT_FILES_PER_PROJECT_BYTES = 1024 * 1024 * 1024   # per project: total bytes
+MAX_PROJECT_FILES_TOTAL_BYTES = 5 * 1024 * 1024 * 1024     # whole store: total bytes
+# Cap on the STORED extracted text (not the source-file size): text extraction
+# stops writing after this many bytes.
+PROJECT_FILE_TEXT_EXTRACT_MAX_BYTES = 200 * 1024
+
+# Upload allowlist, keyed by lowercase file extension. Documents/data and images
+# are stored; archives and CAD/engineering files are stored opaquely and are
+# never unpacked or parsed.
+PROJECT_FILE_EXTENSIONS = {
+    # documents / data
+    ".pdf", ".txt", ".md", ".csv", ".tsv", ".json", ".rtf",
+    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt",
+    # images (stored, never parsed)
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    # archives (stored opaquely, never unpacked)
+    ".zip", ".tar", ".gz", ".tgz",
+    # CAD / engineering (stored opaquely, never parsed)
+    ".step", ".stp", ".stl", ".iges", ".igs", ".dwg", ".dxf",
+    ".3mf", ".f3d", ".sldprt", ".ipt",
+}
+
+# Subset of PROJECT_FILE_EXTENSIONS whose text can be extracted for AI features
+# this sprint. Legacy .doc/.xls/.ppt may be stored but are not AI-readable yet.
+AI_READABLE_EXTENSIONS = {
+    ".pdf", ".txt", ".md", ".csv", ".tsv", ".json",
+    ".docx", ".xlsx", ".pptx",
+}
+
+# ---------- Outreach crawler ----------
+# Deliberately tiny: a courtesy read of a business's own site, not a spider.
+OUTREACH_CRAWL_MAX_PAGES = 5
+OUTREACH_CRAWL_DELAY_SECONDS = 1.0
+
 POLL_INTERVAL_MINUTES = int(os.getenv("POLL_INTERVAL_MINUTES", "60"))
 
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID", "")

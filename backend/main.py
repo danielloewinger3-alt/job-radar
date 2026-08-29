@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ from backend.config import (
 )
 from backend.cv_text import extract_text as extract_cv_text
 from backend.db import get_session, init_db
+from backend.features import feature_routers
 from backend import news as news_module
 from backend.models import CV, Application, Business, Job, Profile, Project, utcnow
 from backend import poller
@@ -54,6 +56,34 @@ async def lifespan(_app: "FastAPI"):
 
 
 app = FastAPI(title="Job Search Tool", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
+# CORS: narrowly scoped for the MV3 browser extension.
+#
+# In normal operation the extension talks to this API from its service worker
+# using its own "localhost" host permission, so those requests are not gated by
+# browser CORS at all. This middleware only matters for explicit Origin-bearing
+# requests (e.g. a content-script fetch), and the extension only ever needs
+# cross-origin GETs. The app's own frontend POST/PATCH/DELETE calls are
+# same-origin and need no CORS grant. Never widen any of these to wildcards.
+# ---------------------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"^chrome-extension://[a-p]{32}$",  # exact extension-ID shape
+    allow_credentials=False,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
+
+# Mount each future workstream's (currently empty) router. Order is fixed by
+# backend.features.FEATURES. Importing a router module pulls in only fastapi --
+# no database access, no import cycle back to this module.
+for _feature_name, _feature_router in feature_routers():
+    app.include_router(_feature_router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 

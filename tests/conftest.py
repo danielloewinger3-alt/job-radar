@@ -121,6 +121,15 @@ def isolated_db(tmp_path, monkeypatch):
     if "backend.main" in sys.modules:
         monkeypatch.setattr(sys.modules["backend.main"], "UPLOAD_DIR", upload_dir)
 
+    # Project-file uploads (file-management workstream) must never touch the repo
+    # or the main checkout. Redirect the store root into tmp_path. Future
+    # project-file modules read backend.config.PROJECTFILES_DIR dynamically, so
+    # patching the attribute here is enough; the directory is created so a lazy
+    # mkdir(parents=True, exist_ok=True) on first write is a harmless no-op.
+    projectfiles_dir = tmp_path / "projectfiles"
+    projectfiles_dir.mkdir(parents=True)
+    monkeypatch.setattr(backend_config, "PROJECTFILES_DIR", projectfiles_dir)
+
     SQLModel.metadata.create_all(test_engine)
     try:
         yield test_engine
