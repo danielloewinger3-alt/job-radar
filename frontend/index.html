@@ -30,6 +30,12 @@
       <button id="hub-btn" class="hud-btn hud-btn--ghost">Dossier</button>
       <button id="prospects-btn" class="hud-btn hud-btn--ghost">UK Prospects</button>
       <button id="news-btn" class="hud-btn hud-btn--ghost">News</button>
+      <button id="tracker-btn" class="hud-btn hud-btn--ghost" type="button">Tracker</button>
+      <button id="projectfiles-btn" class="hud-btn hud-btn--ghost" type="button">Files</button>
+      <button id="outreach-btn" class="hud-btn hud-btn--ghost" type="button">Outreach</button>
+      <button id="integrations-indicator" class="integrations-indicator" type="button" aria-label="Integrations status" title="Integrations">
+        <span class="integrations-dot" data-state="unknown" aria-hidden="true"></span>
+      </button>
       <button id="alfred-btn" class="hud-btn hud-btn--ghost" type="button" aria-label="Talk to Alfred" title="Talk to Alfred">
         <span class="alfred-mic-dot" aria-hidden="true"></span> Alfred
       </button>
@@ -174,6 +180,7 @@
     </div>
     <div class="job-modal-actions">
       <a id="job-modal-view" href="#" target="_blank" rel="noopener" class="hud-btn hud-btn--ghost">View posting &#8599;</a>
+      <button id="job-modal-track-btn" class="hud-btn hud-btn--ghost" type="button" disabled title="Waiting for the job-modal bridge (see frontend/js/README.md)">Track application</button>
       <button id="job-modal-apply-btn" class="hud-btn hud-btn--accent">Apply</button>
     </div>
     <div class="job-modal-apply" id="job-modal-apply" hidden>
