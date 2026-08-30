@@ -1,0 +1,92 @@
+{
+  "_comment": "Bundled fixture for mock mode. Shapes mirror Agent A's final contract: GET /api/tracked-applications, GET /api/packs/{id}, GET /api/packs/{id}/autofill. All values are synthetic.",
+  "tracked_applications": [
+    {
+      "id": 7,
+      "role_title": "Embedded Systems Engineer",
+      "stage": "preparing",
+      "pack_id": 42,
+      "pack": {
+        "schema_version": 1,
+        "pack_id": 42,
+        "tracked_application_id": 7,
+        "reviewed": true,
+        "updated_at": "2026-08-20T10:00:00Z"
+      },
+      "autofill": {
+        "schema_version": 1,
+        "pack_id": 42,
+        "tracked_application_id": 7,
+        "reviewed": true,
+        "fields": [
+          { "key": "full_name", "label": "Full name", "value": "Jordan Sample", "type": "text", "autocomplete": "name", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": false },
+          { "key": "email", "label": "Email address", "value": "jordan.sample@example.com", "type": "email", "autocomplete": "email", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": true },
+          { "key": "phone", "label": "Phone number", "value": "+1-555-0100", "type": "tel", "autocomplete": "tel", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": true },
+          { "key": "linkedin", "label": "LinkedIn profile URL", "value": "https://www.linkedin.com/in/jordan-sample", "type": "url", "autocomplete": "url", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": false },
+          { "key": "location", "label": "City", "value": "Austin", "type": "text", "autocomplete": "address-level2", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": false },
+          { "key": "work_authorization", "label": "Are you authorized to work in the United States?", "value": "Yes", "type": "select", "autocomplete": "", "source": "user_supplied", "answer_kind": "declared_answer", "status": "sourced", "provenance": "You answered this in Job Radar", "sensitive": false },
+          { "key": "sponsorship_needed", "label": "Will you require visa sponsorship?", "value": "No", "type": "select", "autocomplete": "", "source": "user_supplied", "answer_kind": "declared_answer", "status": "sourced", "provenance": "You answered this in Job Radar", "sensitive": false },
+          { "key": "years_experience", "label": "Years of professional experience", "value": "8", "type": "number", "autocomplete": "", "source": "user_supplied", "answer_kind": "declared_answer", "status": "sourced", "provenance": "You answered this in Job Radar", "sensitive": false },
+          { "key": "notice_period", "label": "Notice period", "value": "Two weeks", "type": "text", "autocomplete": "", "source": "user_supplied", "answer_kind": "declared_answer", "status": "needs_input", "provenance": "Not confirmed yet", "sensitive": false },
+          { "key": "clearance_from_cv", "label": "Security clearance", "value": "Active Secret", "type": "text", "autocomplete": "", "source": "cv", "answer_kind": "declared_answer", "status": "sourced", "provenance": "Parsed from your CV (not confirmed)", "sensitive": false },
+          { "key": "cover_note", "label": "Why do you want to work here?", "value": "I have shipped three production motion-control platforms and want to help scale the stack.", "type": "textarea", "autocomplete": "", "source": "user_supplied", "answer_kind": "narrative", "status": "sourced", "provenance": "Draft you wrote in Job Radar", "sensitive": false },
+          { "key": "auto_summary", "label": "Candidate summary", "value": "Assistant-generated summary of the applicant profile.", "type": "textarea", "autocomplete": "", "source": "generated", "answer_kind": "narrative", "status": "sourced", "provenance": "Assistant draft", "sensitive": false },
+          { "key": "unsourced_email", "label": "Alternate email", "value": "alt@example.com", "type": "email", "autocomplete": "email", "source": "", "answer_kind": "standard", "status": "", "provenance": "", "sensitive": false },
+          { "key": "bad_type_field", "label": "Colour preference", "value": "blue", "type": "color", "autocomplete": "", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "", "sensitive": false }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "role_title": "Data Platform Engineer",
+      "stage": "preparing",
+      "pack_id": 55,
+      "pack": {
+        "schema_version": 1,
+        "pack_id": 55,
+        "tracked_application_id": 9,
+        "reviewed": false,
+        "updated_at": "2026-08-25T09:00:00Z"
+      },
+      "autofill": {
+        "schema_version": 1,
+        "pack_id": 55,
+        "tracked_application_id": 9,
+        "reviewed": false,
+        "fields": [
+          { "key": "full_name", "label": "Full name", "value": "Jordan Sample", "type": "text", "autocomplete": "name", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": false },
+          { "key": "email", "label": "Email", "value": "jordan.sample@example.com", "type": "email", "autocomplete": "email", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": true },
+          { "key": "cover_note", "label": "Motivation", "value": "Short motivation paragraph.", "type": "textarea", "autocomplete": "", "source": "user_supplied", "answer_kind": "narrative", "status": "sourced", "provenance": "Draft you wrote", "sensitive": false }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "role_title": "Firmware Intern",
+      "stage": "preparing",
+      "pack_id": null
+    },
+    {
+      "id": 3,
+      "role_title": "Old Application",
+      "stage": "archived",
+      "pack_id": 21,
+      "pack": {
+        "schema_version": 1,
+        "pack_id": 21,
+        "tracked_application_id": 3,
+        "reviewed": true,
+        "updated_at": "2026-01-01T00:00:00Z"
+      },
+      "autofill": {
+        "schema_version": 1,
+        "pack_id": 21,
+        "tracked_application_id": 3,
+        "reviewed": true,
+        "fields": [
+          { "key": "full_name", "label": "Full name", "value": "Jordan Sample", "type": "text", "autocomplete": "name", "source": "profile", "answer_kind": "standard", "status": "sourced", "provenance": "Job Radar profile", "sensitive": false }
+        ]
+      }
+    }
+  ]
+}

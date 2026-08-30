@@ -1,0 +1,16 @@
+{
+  "name": "jobradar-autofill-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Job Radar review-first autofill extension (MV3) -- mock mode + scanner + live mode.",
+  "scripts": {
+    "build": "node build.js",
+    "build:check": "node build.js --check",
+    "test": "node --test \"tests/*.test.js\"",
+    "verify": "bash verify/audit.sh"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

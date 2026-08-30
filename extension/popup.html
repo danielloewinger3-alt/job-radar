@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job Radar Autofill</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Job Radar Autofill</h1>
+      <p class="warn">
+        Review every field before submitting. This extension never submits forms,
+        never clicks buttons, and never solves CAPTCHAs.
+      </p>
+    </header>
+
+    <section class="modes" aria-label="Data source">
+      <span>Source:</span>
+      <label><input type="radio" name="mode" value="mock" /> Mock fixture</label>
+      <label><input type="radio" name="mode" value="live" /> Local backend</label>
+    </section>
+
+    <p id="status" class="status" role="status"></p>
+
+    <section aria-label="Tracked applications">
+      <ul id="app-list" class="app-list"></ul>
+    </section>
+
+    <footer>
+      <button id="scan" type="button" disabled>Scan this page</button>
+      <p id="scan-result" class="status" role="status"></p>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

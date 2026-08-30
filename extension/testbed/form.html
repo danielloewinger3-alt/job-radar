@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Autofill testbed — job application form</title>
+    <style>
+      body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; max-width: 720px; }
+      h1, h2 { margin: 0 0 8px; }
+      section { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+      label { display: block; margin: 10px 0 3px; font-weight: 600; }
+      input[type="text"], input[type="email"], input[type="tel"], input[type="url"],
+      input[type="number"], input[type="date"], input[type="password"], textarea, select {
+        width: 100%; padding: 6px 8px; box-sizing: border-box; font: inherit;
+      }
+      .excluded { background: #fff7f7; border-color: #f3c2c2; }
+      .fake-captcha { border: 1px solid #4285f4; border-radius: 4px; padding: 12px; display: inline-block; margin-top: 10px; background: #f7faff; }
+      #log { background: #0b1021; color: #d7e0ff; padding: 12px; border-radius: 8px; height: 220px; overflow: auto; white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+      .counters { font-weight: 700; margin-bottom: 8px; }
+      button { font: inherit; padding: 8px 16px; border-radius: 6px; }
+      #run-selftest { background: #eef; border: 1px solid #99f; }
+      #submit-btn { background: #d33; color: #fff; border: 1px solid #a00; }
+    </style>
+  </head>
+  <body>
+    <h1>Autofill testbed</h1>
+    <p>
+      A realistic application form. The extension should propose values only for
+      the safe fields, leave every field in the “excluded” section untouched, and
+      never fire a form submission.
+    </p>
+
+    <form id="app-form">
+      <section>
+        <h2>Applicant details (safe)</h2>
+
+        <label for="full-name">Full name</label>
+        <input type="text" id="full-name" name="applicant_name" autocomplete="name" />
+
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" autocomplete="email" />
+
+        <label for="phone">Phone number</label>
+        <input type="tel" id="phone" name="phone" autocomplete="tel" />
+
+        <label for="linkedin">LinkedIn profile URL</label>
+        <input type="url" id="linkedin" name="linkedin_url" />
+
+        <label for="portfolio">Portfolio or website</label>
+        <input type="url" id="portfolio" name="portfolio_url" />
+
+        <label for="city">City</label>
+        <input type="text" id="city" name="city" autocomplete="address-level2" />
+
+        <label for="years">Years of professional experience</label>
+        <input type="number" id="years" name="years_experience" min="0" />
+
+        <label for="start-date">Earliest start date</label>
+        <input type="date" id="start-date" name="start_date" />
+
+        <label for="notice">Notice period</label>
+        <input type="text" id="notice" name="notice_period" />
+
+        <label for="work-auth">Are you authorized to work in the United States?</label>
+        <select id="work-auth" name="work_authorization">
+          <option value="">Select…</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+
+        <label for="sponsorship">Will you require visa sponsorship?</label>
+        <select id="sponsorship" name="sponsorship_needed">
+          <option value="">Select…</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+
+        <label for="cover">Why do you want to work here?</label>
+        <textarea id="cover" name="cover_note" rows="4"></textarea>
+      </section>
+
+      <section class="excluded">
+        <h2>Sensitive / legal (must stay untouched)</h2>
+
+        <label for="pw">Create a password</label>
+        <input type="password" id="pw" name="password" autocomplete="new-password" />
+
+        <label for="card">Card number</label>
+        <input type="text" id="card" name="cc_number" inputmode="numeric" />
+
+        <label for="cvv">CVV</label>
+        <input type="text" id="cvv" name="cc_cvv" inputmode="numeric" />
+
+        <label for="ssn">Social Security Number</label>
+        <input type="text" id="ssn" name="ssn" />
+
+        <label for="disability">Do you have a disability?</label>
+        <select id="disability" name="disability_status">
+          <option value="">Select…</option>
+          <option>Yes</option>
+          <option>No</option>
+          <option>Prefer not to say</option>
+        </select>
+
+        <label for="race">Race / ethnicity</label>
+        <select id="race" name="race_ethnicity">
+          <option value="">Select…</option>
+          <option>Prefer not to say</option>
+        </select>
+
+        <label for="gender">Gender identity</label>
+        <select id="gender" name="gender_identity">
+          <option value="">Select…</option>
+          <option>Prefer not to say</option>
+        </select>
+
+        <label for="veteran">Protected veteran status</label>
+        <select id="veteran" name="veteran_status">
+          <option value="">Select…</option>
+          <option>I am not a protected veteran</option>
+        </select>
+
+        <label for="signature">Type your full name to sign</label>
+        <input type="text" id="signature" name="e_signature" />
+
+        <label><input type="checkbox" id="certify" name="certify_true" /> I certify that the information provided is true.</label>
+        <label><input type="checkbox" id="agree" name="agree_terms" /> I agree to the terms and conditions.</label>
+
+        <label for="resume">Résumé (PDF)</label>
+        <input type="file" id="resume" name="resume" accept="application/pdf" />
+
+        <input type="hidden" id="tracking-token" name="tracking_token" value="do-not-touch" />
+
+        <div class="fake-captcha g-recaptcha" data-sitekey="TESTBED-FAKE-KEY">
+          <label><input type="checkbox" id="fake-captcha" /> I'm not a robot (fake)</label>
+        </div>
+      </section>
+
+      <button type="submit" id="submit-btn">Submit application (must never fire)</button>
+    </form>
+
+    <section>
+      <h2>Event log</h2>
+      <div class="counters" id="counters">input: 0 · change: 0 · submit attempts: 0</div>
+      <button type="button" id="run-selftest">Run self-test</button>
+      <div id="log" aria-live="polite"></div>
+    </section>
+
+    <script src="selftest.js"></script>
+  </body>
+</html>

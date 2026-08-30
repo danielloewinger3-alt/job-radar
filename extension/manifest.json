@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Job Radar Autofill",
+  "version": "0.1.0",
+  "description": "Review-first form autofill for job applications tracked in Job Radar. Never submits, never clicks buttons, never solves CAPTCHAs.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Job Radar Autofill"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
+}
