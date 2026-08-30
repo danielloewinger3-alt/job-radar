@@ -19,13 +19,14 @@
   if (!UI) { console.error("outreach.js: JobRadarUI missing"); return; }
   const { el, clear, fetchJSON, renderState, renderFetchFailure, confirm, toast } = UI;
 
-  // Canonical stage set (Agent B). Order is display order.
-  const STAGES = ["identified", "contacted", "replied", "meeting", "closed_won", "closed_lost", "opted_out"];
+  // Canonical stage set (Agent B's OUTREACH_STAGES, in pipeline order). There is
+  // no "opted_out" stage — an opt-out moves the thread to closed_lost.
+  const STAGES = ["identified", "drafted", "approved", "contacted", "replied", "meeting", "closed_won", "closed_lost"];
   const STAGE_LABEL = {
-    identified: "Identified", contacted: "Contacted", replied: "Replied", meeting: "Meeting",
-    closed_won: "Closed — won", closed_lost: "Closed — lost", opted_out: "Opted out",
+    identified: "Identified", drafted: "Drafted", approved: "Approved", contacted: "Contacted",
+    replied: "Replied", meeting: "Meeting", closed_won: "Closed — won", closed_lost: "Closed — lost",
   };
-  const TERMINAL = { closed_won: 1, closed_lost: 1, opted_out: 1 };
+  const TERMINAL = { closed_won: 1, closed_lost: 1 };
   function isActive(stage) { return !TERMINAL[stage]; }
 
   // Administrative transitions the generic selector is allowed to offer.
@@ -37,42 +38,50 @@
     return out;
   }
 
+  // Keys are Agent B's nested error codes ({"detail": {"code", "message"}}).
   const ERROR_COPY = {
-    suppressed: "This business is on the suppression list — no outreach allowed.",
-    opted_out: "This business has opted out of outreach.",
-    duplicate: "You've already contacted this business.",
-    already_contacted: "You've already contacted this business.",
+    contact_suppressed: "That contact's email or domain is on the suppression list — no outreach allowed.",
+    contact_stale: "That contact is stale after rediscovery — pick a current one.",
+    contact_business_mismatch: "That contact belongs to a different business.",
+    duplicate_attempt: "An uncleared outreach attempt already exists for this business/email.",
+    approval_required: "Approve the current draft before generating a mailto link.",
+    invalid_stage_transition: "That stage change isn't allowed from here.",
+    drafting_disabled: "Drafting is disabled — Claude (ai.anthropic) isn't configured.",
+    empty_draft: "There's no subject/body to approve yet.",
+    ai_unusable_response: "The drafting model returned an unusable response — try again.",
+    db_locked: "The database is busy — retry in a moment.",
   };
   function errorMessage(res) {
-    const code = res.code || (res.data && res.data.code) || (res.data && res.data.detail && res.data.detail.code);
+    const code = res.code || (res.data && res.data.detail && res.data.detail.code);
     if (code && ERROR_COPY[code]) return ERROR_COPY[code];
     if (res.unavailable) return "The outreach API isn't available in this build yet.";
     if (res.forbidden) return "You don't have access to outreach.";
     return res.message || "That outreach action didn't go through.";
   }
 
+  // Field accessors over Agent B's canonical thread shapes. The pipeline list
+  // returns _thread_summary (id, business_name, stage, selected_contact_email,
+  // *_at); the detail route adds subject/body/has_draft/approved_at and a full
+  // `contact` object.
   function threadBusiness(t) {
-    if (t.business && typeof t.business === "object") return t.business.name || t.business.title || "Business";
-    return t.business_name || t.name || "Business";
+    return t.business_name || "Business";
   }
   function threadContactEmail(t) {
-    if (t.contact && typeof t.contact === "object") return t.contact.email || "";
-    return t.contact_email || "";
+    if (t.contact && typeof t.contact === "object" && t.contact.email) return t.contact.email;
+    return t.selected_contact_email || "";
   }
   function threadContactName(t) {
-    if (t.contact && typeof t.contact === "object") return t.contact.name || t.contact.email || "";
-    return t.contact_name || t.contact_email || "";
+    // Agent B carries no contact display name; the email is the identifier.
+    return threadContactEmail(t);
   }
   function threadDraftApproved(t) {
-    if (t.draft && typeof t.draft === "object") return t.draft.approved === true;
-    return t.draft_approved === true || t.approved === true;
+    return t.approved_at != null;
   }
   function threadDraftBody(t) {
-    if (t.draft && typeof t.draft === "object") return t.draft.body || t.draft.text || "";
-    return t.draft_body || "";
+    return typeof t.body === "string" ? t.body : "";
   }
   function threadHasDraft(t) {
-    return !!(threadDraftBody(t) || (t.draft && typeof t.draft === "object"));
+    return t.has_draft === true || !!threadDraftBody(t);
   }
 
   const state = {
@@ -151,13 +160,20 @@
     const res = await fetchJSON("/api/prospects/" + encodeURIComponent(state.area) + "/contacts", { kind: "collection" });
     clear(content);
     if (!res.ok) { renderFetchFailure(content, res, () => { dlg.close(); viewContacts(triggerEl); }); return; }
-    const rows = Array.isArray(res.data) ? res.data : (res.data && res.data.items) || [];
+    // Agent B: {"contacts": [{business_name, email, classification, active,
+    // suppressed, ...}]}.
+    const rows = res.data && Array.isArray(res.data.contacts) ? res.data.contacts : null;
+    if (!rows) { renderState(content, { kind: "error", message: "The contact list wasn't in the expected shape (contract mismatch)." }); return; }
     if (!rows.length) { renderState(content, { kind: "empty", message: "No contacts collected for this area yet." }); return; }
     const ul = el("ul", { className: "tk-sec-list" });
     rows.forEach((c) => {
-      const name = c.name || c.business_name || "Business";
-      const status = c.contact_status || c.discovery_status || c.status || "";
-      const email = c.email || (c.contact && c.contact.email) || "";
+      const name = c.business_name || "Business";
+      const bits = [];
+      if (c.classification) bits.push(c.classification);
+      if (c.suppressed) bits.push("suppressed");
+      else if (c.active === false) bits.push("stale");
+      const status = bits.join(", ");
+      const email = c.email || "";
       ul.appendChild(el("li", { text: name + (status ? " — " + status : "") + (email ? " · " + email : "") }));
     });
     content.appendChild(ul);
@@ -176,13 +192,9 @@
   }
 
   function flattenThreads(data) {
-    if (Array.isArray(data)) return data;
+    // Agent B: GET /api/outreach/pipeline -> {stages:{…}, threads:[_thread_summary]}
+    // and GET /api/outreach/threads -> {threads:[…], total}.
     if (data && Array.isArray(data.threads)) return data.threads;
-    if (data && typeof data === "object") {
-      const out = [];
-      STAGES.forEach((s) => { if (Array.isArray(data[s])) data[s].forEach((t) => out.push(Object.assign({ stage: s }, t))); });
-      if (out.length) return out;
-    }
     return [];
   }
 
@@ -260,10 +272,9 @@
     const email = threadContactEmail(t);
     box.appendChild(el("h4", { className: "tk-sec-title", text: threadBusiness(t) }));
     box.appendChild(el("p", { className: "or-thread-meta", text: "Stage: " + (STAGE_LABEL[t.stage] || t.stage || "—") +
-      (threadContactName(t) ? " · Contact: " + threadContactName(t) : "") + (email ? " <" + email + ">" : "") }));
-    if (t.discovery_status || t.contact_status) {
-      box.appendChild(el("p", { className: "or-thread-meta", text:
-        (t.discovery_status ? "Discovery: " + t.discovery_status + "  " : "") + (t.contact_status ? "Contact: " + t.contact_status : "") }));
+      (email ? " · Contact: " + email : "") }));
+    if (t.selected_contact_suppressed) {
+      box.appendChild(el("p", { className: "or-thread-meta", text: "⚠ The selected contact is on the suppression list." }));
     }
 
     // draft area
@@ -297,20 +308,32 @@
     mailBtn.addEventListener("click", () => openInEmailApp(t, mailBtn));
     actions.appendChild(mailBtn);
 
-    // Reopen (terminal only) / Opt-out - dedicated endpoints
-    if (TERMINAL[t.stage] && t.stage !== "opted_out") {
+    // Reopen (from a closed stage) / Opt-out - dedicated endpoints
+    if (TERMINAL[t.stage]) {
       const reopenBtn = el("button", { className: "hud-btn hud-btn--ghost", type: "button", text: "Reopen" });
       reopenBtn.addEventListener("click", () => runSimple(t, "reopen", reopenBtn, "Thread reopened."));
       actions.appendChild(reopenBtn);
     }
-    if (t.stage !== "opted_out") {
+    if (!TERMINAL[t.stage]) {
       const optBtn = el("button", { className: "hud-btn hud-btn--ghost", type: "button", text: "Opt this business out" });
       optBtn.addEventListener("click", async () => {
         const r = await confirm({
-          title: "Opt this business out?", body: threadBusiness(t) + " will be excluded from all future outreach.",
+          title: "Opt this contact out?",
+          body: "The selected contact's email address for " + threadBusiness(t) + " will be suppressed from all future outreach.",
           confirmLabel: "Opt out", danger: true, triggerEl: optBtn,
         });
-        if (r.confirmed) runSimple(t, "opt-out", optBtn, "Business opted out.");
+        if (!r.confirmed) return;
+        // Agent B's /opt-out requires a scope. "email" is the conservative
+        // choice (suppresses just this address, not the whole domain, which
+        // could be a shared provider) and matches B's primary contract.
+        if (busy("or:opt-out:" + t.id)) return;
+        setBusy("or:opt-out:" + t.id, true, optBtn);
+        const res = await fetchJSON("/api/outreach/threads/" + encodeURIComponent(t.id) + "/opt-out", {
+          method: "POST", kind: "action", body: { scope: "email" },
+        });
+        setBusy("or:opt-out:" + t.id, false, optBtn);
+        if (res.ok) { toast("Business opted out.", "info"); loadThread(t.id); loadPipeline(); }
+        else toast(errorMessage(res), "error");
       });
       actions.appendChild(optBtn);
     }
@@ -334,7 +357,7 @@
         if (!r.confirmed) return;
         if (busy("orstage:" + t.id)) return;
         setBusy("orstage:" + t.id, true, moveBtn);
-        const res = await fetchJSON("/api/outreach/threads/" + encodeURIComponent(t.id) + "/stage", { method: "POST", kind: "action", body: { to_stage: to } });
+        const res = await fetchJSON("/api/outreach/threads/" + encodeURIComponent(t.id) + "/stage", { method: "POST", kind: "action", body: { stage: to } });
         setBusy("orstage:" + t.id, false, moveBtn);
         if (res.ok) { toast("Stage updated.", "info"); loadThread(t.id); loadPipeline(); }
         else toast(errorMessage(res), "error");

@@ -451,6 +451,17 @@
     state.currentJob = job;
     markSeen(job);
 
+    // Job-modal bridge for the feature modules (tracker.js et al.). We hand out
+    // a fresh plain object of primitives only — never a reference to `job` or
+    // any live state — so listeners cannot mutate the map's internals.
+    emitJobModalEvent("jobradar:jobmodalopen", {
+      id: job.id != null ? String(job.id) : "",
+      company: typeof job.company === "string" ? job.company : "",
+      title: typeof job.title === "string" ? job.title : "",
+      url: typeof job.url === "string" ? job.url : "",
+      source: typeof job.source === "string" ? job.source : "",
+    });
+
     els.jobModalTitle.textContent = job.title;
     els.jobModalCompany.textContent = job.company;
 
@@ -501,6 +512,16 @@
     els.jobModal.classList.remove("open");
     els.jobBackdrop.classList.remove("open");
     state.currentJob = null;
+    emitJobModalEvent("jobradar:jobmodalclose", null);
+  }
+
+  // Freeze the detail so a listener can read it but not reach back into app.js
+  // state. Any listener error is swallowed — the modal must not depend on them.
+  function emitJobModalEvent(name, detail) {
+    try {
+      var payload = detail ? Object.freeze(detail) : undefined;
+      document.dispatchEvent(new CustomEvent(name, { detail: payload }));
+    } catch (e) { /* CustomEvent unsupported or a listener threw — ignore */ }
   }
 
   function renderApplyCvOptions() {

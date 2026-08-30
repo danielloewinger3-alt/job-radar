@@ -39,26 +39,29 @@
     return res.message || "Something went wrong with that file.";
   }
 
+  // Agent A's canonical extract_status set: "ok" | "truncated" (readable) and
+  // "unsupported" | "empty" | "error" (stored, not read by AI).
   function extractionLabel(status) {
     const s = String(status || "").toLowerCase();
-    if (/^(available|done|ok|extracted|ready)$/.test(s)) return { text: "Text extraction available", cls: "ok" };
-    if (/^(pending|processing|queued|running)$/.test(s)) return { text: "Text extraction pending", cls: "pending" };
+    if (/^(ok|truncated)$/.test(s)) return { text: "Text extraction available", cls: "ok" };
     return { text: "Stored attachment — not read by AI", cls: "off" };
   }
-  function isReadable(status) { return /^(available|done|ok|extracted|ready)$/i.test(String(status || "")); }
+  function isReadable(status) { return /^(ok|truncated)$/i.test(String(status || "")); }
 
   function normalizeFile(raw) {
     if (!raw || typeof raw !== "object") throw new UI.ContractError("project-file was not an object");
-    if (raw.id == null) throw new UI.ContractError("project-file missing required 'id'");
+    // Agent A's serialiser keys the id as `file_id`.
+    const fid = raw.file_id != null ? raw.file_id : raw.id;
+    if (fid == null) throw new UI.ContractError("project-file missing required 'file_id'");
     return {
-      id: raw.id,
-      original_name: typeof raw.original_name === "string" ? raw.original_name : (raw.name || "file"),
-      extension: raw.extension || raw.ext || "",
-      byte_size: raw.byte_size != null ? raw.byte_size : (raw.size != null ? raw.size : null),
-      extract_status: raw.extract_status || raw.extraction_status || "",
+      id: fid,
+      original_name: typeof raw.original_name === "string" ? raw.original_name : "file",
+      extension: raw.extension || "",
+      byte_size: raw.byte_size != null ? raw.byte_size : null,
+      extract_status: raw.extract_status || "",
       ai_context_enabled: raw.ai_context_enabled === true,
       description: typeof raw.description === "string" ? raw.description : "",
-      created_at: raw.created_at || raw.uploaded_at || null,
+      created_at: raw.created_at || null,
       raw: raw,
     };
   }
@@ -196,7 +199,9 @@
     if (my !== state.filesReq || !panel.isOpen()) return;
     if (!res.ok) { renderFetchFailure(listArea, res, loadFiles); return; }
     try {
-      state.files = (Array.isArray(res.data) ? res.data : (res.data && res.data.items) || []).map(normalizeFile);
+      const list = res.data && Array.isArray(res.data.files) ? res.data.files : null;
+      if (!list) throw new UI.ContractError("project-files collection missing 'files' array");
+      state.files = list.map(normalizeFile);
     } catch (e) {
       console.error(e);
       renderState(listArea, { kind: "error", message: "The file list wasn't in the expected shape (contract mismatch)." });

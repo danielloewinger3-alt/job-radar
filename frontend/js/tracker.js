@@ -57,12 +57,11 @@
       updated_at: raw.updated_at || null,
       contacts: Array.isArray(raw.contacts) ? raw.contacts : [],
       events: Array.isArray(raw.events) ? raw.events : [],
-      deadlines: Array.isArray(raw.deadlines) ? raw.deadlines : [],
-      next_actions: Array.isArray(raw.next_actions) ? raw.next_actions : [],
-      projects: Array.isArray(raw.projects) ? raw.projects
-        : (Array.isArray(raw.linked_project_ids) ? raw.linked_project_ids : []),
+      deadlines: [],
+      next_actions: raw.next_action ? [raw.next_action] : [],
+      projects: Array.isArray(raw.project_ids) ? raw.project_ids : [],
       cv_id: raw.cv_id != null ? raw.cv_id : null,
-      pack_id: raw.pack_id != null ? raw.pack_id : (raw.pack && raw.pack.pack_id) || null,
+      pack_id: raw.pack_id != null ? raw.pack_id : null,
       raw: raw,
     };
   }
@@ -70,12 +69,36 @@
   function normalizeCalendarItem(raw) {
     if (!raw || typeof raw !== "object") return null;
     return {
-      when: raw.when || raw.date || raw.due || raw.at || null,
-      kind: raw.kind || raw.type || "item",
-      title: typeof raw.title === "string" ? raw.title : (raw.label || ""),
-      application_id: raw.application_id != null ? raw.application_id : (raw.tracked_application_id != null ? raw.tracked_application_id : null),
+      when: raw.when || null,
+      kind: raw.type || "item",
+      title: typeof raw.title === "string" ? raw.title : "",
+      application_id: raw.tracked_application_id != null ? raw.tracked_application_id : null,
       company: typeof raw.company === "string" ? raw.company : "",
     };
+  }
+
+  // Agent A's canonical collection envelopes. The list route returns
+  // {schema_version, tracked_applications:[…]}; the calendar route returns
+  // {schema_version, entries:[…]}. A missing/!array payload is a contract error.
+  function trackedList(env) {
+    if (env && Array.isArray(env.tracked_applications)) return env.tracked_applications;
+    throw new UI.ContractError("tracked-applications collection missing 'tracked_applications' array");
+  }
+  function calendarEntries(env) {
+    if (env && Array.isArray(env.entries)) return env.entries;
+    throw new UI.ContractError("calendar response missing 'entries' array");
+  }
+  // Agent A's canonical single-resource envelope: {schema_version,
+  // tracked_application:{…}, events:[…], contacts:[…], project_ids:[…]}.
+  function trackedRecord(env) {
+    if (!env || typeof env !== "object" || !env.tracked_application) {
+      throw new UI.ContractError("tracked-application record missing 'tracked_application'");
+    }
+    return Object.assign({}, env.tracked_application, {
+      events: Array.isArray(env.events) ? env.events : [],
+      contacts: Array.isArray(env.contacts) ? env.contacts : [],
+      project_ids: Array.isArray(env.project_ids) ? env.project_ids : [],
+    });
   }
 
   function normalizeAnswer(a) {
@@ -195,8 +218,7 @@
     if (my !== state.listReq || !panel.isOpen()) return;
     if (!res.ok) { renderFetchFailure(scrollArea, res, loadBoard); return; }
     try {
-      state.apps = (Array.isArray(res.data) ? res.data : (res.data && res.data.items) || [])
-        .map(normalizeTrackedApp).filter((a) => !a.archived);
+      state.apps = trackedList(res.data).map(normalizeTrackedApp).filter((a) => !a.archived);
     } catch (e) {
       console.error(e);
       renderState(scrollArea, { kind: "error", message: "The server sent tracker data this screen didn't recognise (contract mismatch)." });
@@ -396,7 +418,7 @@
     if (my !== state.detailReq || !detail.isOpen()) return;
     if (!res.ok) { renderFetchFailure(bodyEl, res, () => loadDetail(id)); return; }
     let app;
-    try { app = normalizeTrackedApp(res.data); }
+    try { app = normalizeTrackedApp(trackedRecord(res.data)); }
     catch (e) { console.error(e); renderState(bodyEl, { kind: "error", message: "This application's data wasn't in the expected shape (contract mismatch)." }); return; }
     renderDetail(app);
   }
@@ -674,14 +696,16 @@
     let any = false;
     for (const pid of ids) {
       const r = await fetchJSON("/api/projects/" + encodeURIComponent(pid) + "/files", { kind: "collection" });
-      if (!r.ok || !Array.isArray(r.data)) continue;
-      r.data.forEach((f) => {
-        const readable = /^(available|done|ok|extracted|ready)$/i.test(String(f.extract_status || ""));
+      // Agent A's canonical envelope: {schema_version, files:[{file_id, …}]}.
+      if (!r.ok || !r.data || !Array.isArray(r.data.files)) continue;
+      r.data.files.forEach((f) => {
+        const fid = f.file_id;
+        const readable = /^(ok|truncated)$/i.test(String(f.extract_status || ""));
         const eligible = readable && f.ai_context_enabled === true;
-        const cb = el("input", { type: "checkbox", value: String(f.id) });
+        const cb = el("input", { type: "checkbox", value: String(fid) });
         if (!eligible) { cb.disabled = true; }
         const why = eligible ? "" : (f.ai_context_enabled === true ? " (text not extractable)" : " (AI context off)");
-        fileWrap.appendChild(el("label", { className: "tk-pack-file" }, cb, " " + (f.original_name || ("File " + f.id)) + why));
+        fileWrap.appendChild(el("label", { className: "tk-pack-file" }, cb, " " + (f.original_name || ("File " + fid)) + why));
         any = true;
       });
     }
@@ -767,12 +791,15 @@
     renderState(scrollArea, { kind: "loading" });
     const from = new Date(); from.setHours(0, 0, 0, 0);
     const to = new Date(from.getTime() + 30 * 864e5);
-    const qs = "?from=" + encodeURIComponent(from.toISOString().slice(0, 10)) + "&to=" + encodeURIComponent(to.toISOString().slice(0, 10));
+    // Agent A's calendar route requires timezone-aware ISO-8601 (date-only or
+    // naive values are rejected with 422).
+    const qs = "?from=" + encodeURIComponent(from.toISOString()) + "&to=" + encodeURIComponent(to.toISOString());
     const res = await fetchJSON("/api/tracked-applications/calendar" + qs, { kind: "collection" });
     if (my !== state.calReq || !panel.isOpen()) return;
     if (!res.ok) { renderFetchFailure(scrollArea, res, loadCalendar); return; }
-    const items = (Array.isArray(res.data) ? res.data : (res.data && res.data.items) || [])
-      .map(normalizeCalendarItem).filter(Boolean);
+    let items;
+    try { items = calendarEntries(res.data).map(normalizeCalendarItem).filter(Boolean); }
+    catch (e) { console.error(e); renderState(scrollArea, { kind: "error", message: "The server sent calendar data this screen didn't recognise (contract mismatch)." }); return; }
     renderCalendar(items);
   }
 
@@ -843,11 +870,13 @@
       return;
     }
     if (res.validation && res.status === 409) {
+      // Agent A's duplicate-job 409 is a stable top-level body — never nested
+      // under HTTPException.detail:
+      //   {schema_version, code:"already_tracked", tracked_application_id, archived}
       const body = res.data || {};
-      const code = body.code || (body.detail && body.detail.code);
-      const existingId = body.tracked_application_id != null ? body.tracked_application_id
-        : (body.detail && body.detail.tracked_application_id);
-      const archived = body.archived === true || (body.detail && body.detail.archived === true);
+      const code = body.code;
+      const existingId = body.tracked_application_id;
+      const archived = body.archived === true;
       if (code === "already_tracked" && existingId != null) {
         if (archived) return promptArchivedDuplicate(existingId, trackBtn);
         return promptActiveDuplicate(existingId, trackBtn);
@@ -905,16 +934,18 @@
     listApps: async () => {
       const res = await fetchJSON("/api/tracked-applications", { kind: "collection" });
       if (!res.ok) return { error: res };
-      try { return { apps: (Array.isArray(res.data) ? res.data : (res.data && res.data.items) || []).map(normalizeTrackedApp).filter((a) => !a.archived) }; }
+      try { return { apps: trackedList(res.data).map(normalizeTrackedApp).filter((a) => !a.archived) }; }
       catch (e) { return { error: { error: true, message: "contract mismatch" } }; }
     },
     calendarSummary: async () => {
       const from = new Date(); from.setHours(0, 0, 0, 0);
       const to = new Date(from.getTime() + 30 * 864e5);
-      const qs = "?from=" + from.toISOString().slice(0, 10) + "&to=" + to.toISOString().slice(0, 10);
+      const qs = "?from=" + encodeURIComponent(from.toISOString()) + "&to=" + encodeURIComponent(to.toISOString());
       const res = await fetchJSON("/api/tracked-applications/calendar" + qs, { kind: "collection" });
       if (!res.ok) return { error: res };
-      const items = (Array.isArray(res.data) ? res.data : (res.data && res.data.items) || []).map(normalizeCalendarItem).filter(Boolean);
+      let items;
+      try { items = calendarEntries(res.data).map(normalizeCalendarItem).filter(Boolean); }
+      catch (e) { return { error: { error: true, message: "contract mismatch" } }; }
       return { items: items };
     },
     stageKeys: STAGES.map((s) => s.key),
@@ -944,7 +975,7 @@
       const res = await fetchJSON("/api/tracked-applications/" + encodeURIComponent(id), { kind: "record" });
       if (!res.ok) { toast(res.unavailable ? "The tracker API isn't available yet." : "Couldn't open that application.", "error"); return; }
       let app;
-      try { app = normalizeTrackedApp(res.data); }
+      try { app = normalizeTrackedApp(trackedRecord(res.data)); }
       catch (e) { toast("That application's data wasn't in the expected shape.", "error"); return; }
       openDetail(id, trig || trackerBtn);
       setTimeout(() => openPackForm(app, !!app.pack_id, trig || trackerBtn), 90);
